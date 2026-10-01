@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ubiqdoc</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="bar">
+  <strong class="logo">ubiqdoc</strong>
+  <select id="docSelect" title="開いた文書"></select>
+  <form id="openForm">
+    <input id="openPath" placeholder="ローカルの HTML ファイルのパス" spellcheck="false">
+    <button type="submit">開く</button>
+  </form>
+  <span class="spacer"></span>
+  <button id="editToggle" class="edit-toggle" type="button">本文を編集</button>
+  <label class="model">モデル
+    <select id="modelSelect">
+      <option value="haiku">Haiku</option>
+      <option value="sonnet">Sonnet</option>
+      <option value="opus">Opus</option>
+    </select>
+  </label>
+  <span id="baseStatus" class="base"></span>
+  <button id="rebaseBtn" class="rebase-btn" type="button" hidden title="人が直した本文を AI に読み直させる">AI に読み直させる</button>
+</header>
+<div id="staleBanner" class="stale" hidden>別のタブか端末でこの文書が更新されました。ここからは保存しません。<a href="" onclick="location.reload();return false;">再読み込み</a>してください。</div>
+<main>
+  <section class="viewer">
+    <iframe id="docFrame" title="文書"></iframe>
+    <div id="empty" class="empty">ファイルのパスを入れて「開く」を押してください。<br>文書の語句をドラッグすると、その場で質問できます。</div>
+  </section>
+  <aside class="side">
+    <h2>承認待ち</h2>
+    <div id="pendingList" class="list"><p class="muted">なし</p></div>
+    <h2>書き込み履歴</h2>
+    <div id="turnList" class="list"><p class="muted">なし</p></div>
+  </aside>
+</main>
+<div id="windows"></div>
+<button id="askBtn" class="ask-btn" type="button" hidden>AI に聞く</button>
+<div id="toast" class="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

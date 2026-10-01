@@ -1,0 +1,5 @@
+# 開いた文書のコピーと会話ログ (手元の作業データ)
+data/
+logs/
+node_modules/
+.DS_Store
