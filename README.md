@@ -20,7 +20,7 @@ A local document reader where you can drag any phrase and ask an AI about it on 
 - 前の答えを待たない。答えを待っている間も、次の語句に聞ける
 - 答えは読んでいた場所に入る。会話ログの中から探し直さなくていい
 
-設計の経緯と試行錯誤は記事に書いた: (Zenn の記事 URL は公開後に追記)
+設計の経緯と試行錯誤は記事に書いた: [ドキュメントを読んでいて、どの瞬間でもすぐ AI とチャットできるリーダーを作った (Zenn)](https://zenn.dev/ruri/articles/ubiqdoc-ai-chat-reader)
 
 ## できること
 
