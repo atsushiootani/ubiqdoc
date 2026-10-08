@@ -85,13 +85,14 @@ async function loadDocList(selectId) {
 
 async function openDoc(id) {
   closeAllWindows();
-  const { meta, base, pending } = await api(`/api/doc/${id}`);
+  const { meta, base, pending, sourceChanged } = await api(`/api/doc/${id}`);
   state.docId = id;
   state.meta = meta;
   state.pending = pending;
   state.version = meta.version || 0;
   state.stale = false;
   $('#staleBanner').hidden = true;
+  showSourceChanged(sourceChanged);
   $('#modelSelect').value = meta.model;
   $('#docSelect').value = id;
   history.replaceState(null, '', `?doc=${id}`);
@@ -198,12 +199,20 @@ function showEditsSinceBase(n) {
   $('#rebaseBtn').hidden = !n;
 }
 
+// 元ファイルを直に開いているとき、そのファイルが外 (エディタ・別のツール) で書き換わった。
+// こちらからは読み直さない —— 知らせとボタンだけ出して、焚くかどうかは人が決める
+function showSourceChanged(on) {
+  state.sourceChanged = !!on;
+  $('#sourceBanner').hidden = !on;
+}
+
 async function rebase() {
   if (!state.docId) return;
   clearTimeout(onDocInput.timer);
   if (onDocInput.dirty) { onDocInput.dirty = false; await saveDoc(undefined, 'human'); }
   await state.saveChain;
   await api(`/api/doc/${state.docId}/rebase`, { method: 'POST', body: {} });
+  showSourceChanged(false);        // 読み直した版が新しい基準になる
   showBase('creating', state.meta);
   pollBase();
 }
@@ -906,14 +915,22 @@ async function ask(win, question) {
 
 // ---------- 起動 ----------
 
+// 1 本のファイルを開くところまで。`/api/open` は同じファイルなら前の文書を返すので、
+// 返ってきた `reused` をそのまま知らせる (二重に開くこと自体は止めない)
+async function openPath(src, { inPlace, model } = {}) {
+  const r = await api('/api/open', { method: 'POST', body: { path: src, inPlace: !!inPlace, model: model || $('#modelSelect').value } });
+  await loadDocList(r.id);
+  await openDoc(r.id);
+  if (r.reused) toast(`この文書は既に開いています。前の注釈のまま続けます（${r.title || ''}）`);
+  if (r.tooLarge) toast('文書が 100KB を超えています。章ごとにファイルを分けると速く・正確になります');
+  return r;
+}
+
 $('#openForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
-    const { id, tooLarge } = await api('/api/open', { method: 'POST', body: { path: $('#openPath').value.trim(), model: $('#modelSelect').value } });
-    await loadDocList(id);
-    await openDoc(id);
+    await openPath($('#openPath').value.trim(), { inPlace: $('#inPlace').checked });
     $('#openPath').value = '';
-    if (tooLarge) toast('文書が 100KB を超えています。章ごとにファイルを分けると速く・正確になります');
   } catch (err) { toast(err.message); }
 });
 
@@ -930,6 +947,7 @@ $('#editToggle').addEventListener('click', async () => {
 });
 
 $('#rebaseBtn').addEventListener('click', rebase);
+$('#sourceRebaseBtn').addEventListener('click', rebase);
 
 $('#docSelect').addEventListener('change', (e) => { if (e.target.value) openDoc(e.target.value); });
 
@@ -942,7 +960,19 @@ $('#modelSelect').addEventListener('change', async (e) => {
 });
 
 (async () => {
-  const id = new URLSearchParams(location.search).get('doc');
+  const q = new URLSearchParams(location.search);
+  // `?open=<絶対パス>` で、外のツール (エディタ・ファイラ・ダッシュボード) からそのまま開ける。
+  // 送り手は ubiqdoc の API も data の形も知らなくてよい
+  const src = q.get('open');
+  if (src) {
+    $('#inPlace').checked = q.get('inPlace') !== '0';
+    try {
+      const r = await openPath(src, { inPlace: $('#inPlace').checked, model: q.get('model') });
+      history.replaceState(null, '', `?doc=${r.id}`);
+    } catch (e) { toast(e.message); }
+    return;
+  }
+  const id = q.get('doc');
   await loadDocList(id);
   if (id) openDoc(id).catch((e) => toast(e.message));
 })();
