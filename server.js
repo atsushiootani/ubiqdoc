@@ -338,7 +338,43 @@ async function handleOpen(req, res) {
   sendJson(res, 200, { id, tooLarge: html.length > 100 * 1024 });
 }
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.jpg': 'image/jpeg' };
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+  '.svg': 'image/svg+xml', '.avif': 'image/avif', '.ico': 'image/x-icon',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.json': 'application/json',
+};
+
+// 文書と同じ dir に置かれた素材 (style.css・画像・フォント) を配る。
+//
+// 文書は iframe の about:blank に流し込んでいるので、`href="style.css"` のような
+// **相対 URL が何にも解決できず、CSS が当たらないままレイアウトが崩れる**。
+// 元の dir を基準にここから配り直す。
+//
+// `<base>` を差し込まないのは、本文のリンク (`href="index.html"`) まで巻き込むため。
+// 素材だけを書き換えるのは画面側 (`retargetAssets`)。
+function sendAsset(res, id, rel) {
+  const meta = readMeta(id);
+  const root = path.dirname(meta.sourcePath);
+  const abs = path.resolve(root, decodeURIComponent(rel));
+  // 文書の dir の外へは出さない (`../../.ssh/id_rsa` のような相対パスを断つ)
+  if (abs !== root && !abs.startsWith(root + path.sep)) return sendJson(res, 403, { error: 'outside the document folder' });
+  let st;
+  try {
+    st = fs.statSync(abs);
+  } catch {
+    return sendJson(res, 404, { error: 'not found' });
+  }
+  if (!st.isFile()) return sendJson(res, 404, { error: 'not found' });
+  res.writeHead(200, {
+    'Content-Type': MIME[path.extname(abs).toLowerCase()] || 'application/octet-stream',
+    'Content-Length': st.size,
+    'Cache-Control': 'no-cache',
+  });
+  fs.createReadStream(abs).pipe(res);
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -374,6 +410,9 @@ const server = http.createServer(async (req, res) => {
       createBase(m[1]);
       return sendJson(res, 200, { ok: true });
     }
+
+    m = p.match(/^\/api\/doc\/([a-z0-9-]+)\/asset\/(.+)$/);
+    if (m && req.method === 'GET') return sendAsset(res, m[1], m[2]);
 
     m = p.match(/^\/api\/doc\/([a-z0-9-]+)\/html$/);
     if (m && req.method === 'GET') {

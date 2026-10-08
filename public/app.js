@@ -102,6 +102,7 @@ async function openDoc(id) {
   // 文書側の script (mermaid など) に DOM を書き換えられると、その結果まで保存されてしまうので止めておく
   const html = await (await fetch(`/api/doc/${id}/html`, { cache: 'no-store' })).text();
   const parsed = new DOMParser().parseFromString(html, 'text/html');
+  retargetAssets(parsed, id);     // 相対 URL の素材を、文書の dir から配り直す
   state.prefix = '';
   for (const n of parsed.childNodes) {
     if (n === parsed.documentElement) break;
@@ -125,9 +126,55 @@ async function openDoc(id) {
   if (base !== 'ready') pollBase();
 }
 
+// 素材 (css・画像・フォント) の相対 URL を、文書の dir から配り直す口へ向け直す。
+//
+// 文書は about:blank の iframe に流し込むので、相対 URL の基準が無い。`href="style.css"`
+// は何にも解決できず、**CSS が当たらないまま本文だけが出る**。
+//
+// `<base>` を置かないのは、本文のリンク (`href="index.html"`) まで巻き込んで、
+// 文書の中を辿れなくなるため。**素材の属性だけ**を書き換える。
+// 元の値は data-ubiqdoc-* に取っておき、保存の直前に書き戻す (下の serializeDoc)。
+const ASSET_ATTRS = [
+  ['link', 'href'], ['img', 'src'], ['img', 'srcset'], ['source', 'src'],
+  ['source', 'srcset'], ['video', 'src'], ['video', 'poster'], ['audio', 'src'],
+  ['script', 'src'], ['embed', 'src'], ['object', 'data'],
+];
+
+// 書き換えるのは「同じ dir の中を指す相対 URL」だけ。絶対 URL・data:・#… は触らない
+function isRelativeAsset(v) {
+  return !!v && !/^(?:[a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(v.trim());
+}
+
+function retargetAssets(doc, docId) {
+  const base = `/api/doc/${docId}/asset/`;
+  for (const [tag, attr] of ASSET_ATTRS) {
+    for (const el of doc.querySelectorAll(`${tag}[${attr}]`)) {
+      const v = el.getAttribute(attr);
+      // srcset は "a.png 1x, b.png 2x" の並び。URL の部分だけ差し替える
+      const next = attr === 'srcset'
+        ? v.split(',').map((part) => {
+          const [u, ...rest] = part.trim().split(/\s+/);
+          return isRelativeAsset(u) ? [base + u, ...rest].join(' ') : part.trim();
+        }).join(', ')
+        : (isRelativeAsset(v) ? base + v : v);
+      if (next === v) continue;
+      el.setAttribute(`data-ubiqdoc-${attr}`, v);
+      el.setAttribute(attr, next);
+    }
+  }
+}
+
 function serializeDoc() {
   const root = fdoc().documentElement.cloneNode(true);
   root.querySelector('body')?.removeAttribute('contenteditable');
+  // **元の相対 URL に戻してから保存する。** こちらの配り口のパスを書き込むと、
+  // 文書をブラウザで直接開いたときに素材が全部 404 になる
+  for (const [, attr] of ASSET_ATTRS) {
+    for (const el of root.querySelectorAll(`[data-ubiqdoc-${attr}]`)) {
+      el.setAttribute(attr, el.getAttribute(`data-ubiqdoc-${attr}`));
+      el.removeAttribute(`data-ubiqdoc-${attr}`);
+    }
+  }
   return state.prefix + root.outerHTML + '\n';
 }
 
