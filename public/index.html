@@ -13,6 +13,7 @@
   <select id="docSelect" title="開いた文書"></select>
   <form id="openForm">
     <input id="openPath" placeholder="ローカルの HTML ファイルのパス" spellcheck="false">
+    <label class="inplace" title="元のファイルに直接書き込む。切ると data/ のコピーに書く"><input id="inPlace" type="checkbox"> 元ファイルに書く</label>
     <button type="submit">開く</button>
   </form>
   <span class="spacer"></span>
@@ -28,6 +29,7 @@
   <button id="rebaseBtn" class="rebase-btn" type="button" hidden title="人が直した本文を AI に読み直させる">AI に読み直させる</button>
 </header>
 <div id="staleBanner" class="stale" hidden>別のタブか端末でこの文書が更新されました。ここからは保存しません。<a href="" onclick="location.reload();return false;">再読み込み</a>してください。</div>
+<div id="sourceBanner" class="stale src" hidden>元のファイルが、この画面の外で書き換わりました。AI はまだ前の版を読んでいます。<button id="sourceRebaseBtn" type="button">読み直させる</button></div>
 <main>
   <section class="viewer">
     <iframe id="docFrame" title="文書"></iframe>

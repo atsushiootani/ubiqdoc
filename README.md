@@ -47,15 +47,45 @@ A local document reader where you can drag any phrase and ask an AI about it on 
 ```bash
 git clone https://github.com/atsushiootani/ubiqdoc.git
 cd ubiqdoc
-node server.js          # http://127.0.0.1:8910/
-PORT=9000 node server.js  # ポートを変えるとき
+node server.js                     # http://127.0.0.1:8910/
+UBIQDOC_PORT=9000 node server.js   # ポートを変えるとき
 ```
+
+| 環境変数 | 既定 | 何を変えるか |
+|---|---|---|
+| `UBIQDOC_PORT` | `8910` | 待ち受けポート。`PORT` より優先する |
+| `PORT` | — | 後方互換。ほかのツールと一緒に起動すると**この値が漏れてくる**ので、そのときは `UBIQDOC_PORT` を使う |
+| `UBIQDOC_DATA_DIR` | `./data` | 開いた文書と会話ログの置き場 |
 
 1. 上のバーに HTML ファイルの絶対パスを入れて「開く」。裏で AI が文書を読み込み、右上が「準備完了」になる
 2. 語句をドラッグして、窓で質問する (Enter で送信 / Shift+Enter で改行)
 3. 文書の背景をクリックすると窓が閉じる。閉じても、返答待ちだった答えは文書に書き込まれる
 
 モデルは右上で Haiku / Sonnet / Opus から選べる (既定は Haiku)。
+
+### 元のファイルに直接書き込む
+
+既定では、書き込み先は元のファイルではなくコピー (`data/<docId>/doc.html`) になる。
+**「元ファイルに書く」にチェックを入れると、開いたファイルそのものに注釈が入る。**
+読んでいる文書を育てたいとき（自分のメモ・設計書・調査ノート）はこちら。
+
+- 取り消しは今までどおり効く。質問 1 回ぶんの直前の状態は `data/<docId>/history/` に残る
+- **git などで戻せるファイルで使うことを勧める。** 控えは history だけなので、そこを消すと戻せない
+
+### 外のツールから開く
+
+`?open=<絶対パス>` を付けて開くと、そのファイルをそのまま開く。
+エディタ・ファイラ・自作のダッシュボードから、リンク 1 本で送れる。
+
+```
+http://127.0.0.1:8910/?open=/Users/me/notes/design.html          # 元ファイルに書く
+http://127.0.0.1:8910/?open=/Users/me/notes/design.html&inPlace=0 # コピーに書く
+```
+
+同じファイルを開き直したときは、前の文書をそのまま開いて「既に開いています」と知らせる
+（新しく作り直したいときは `/api/open` に `fresh: true` を渡す）。
+開いたあとに元ファイルが外で書き換わったら、上に帯が出る。
+**読み直しは自動では走らない** —— 帯の「読み直させる」を押したときだけ `claude` を焚く。
 
 ## しくみ
 

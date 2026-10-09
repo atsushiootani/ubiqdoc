@@ -5,8 +5,10 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 
-const PORT = process.env.PORT || 8910;
-const DATA_DIR = path.join(__dirname, 'data');
+// PORT は他のプロセスの環境から漏れてくることがあるので、専用の名前を先に見る
+// (ダッシュボードの shell が PORT=38766 を持っていて、素で起動すると EADDRINUSE になった)
+const PORT = process.env.UBIQDOC_PORT || process.env.PORT || 8910;
+const DATA_DIR = process.env.UBIQDOC_DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const MODELS = ['haiku', 'sonnet', 'opus'];
 
@@ -63,6 +65,33 @@ function docDir(id) {
 
 function readMeta(id) {
   return JSON.parse(fs.readFileSync(path.join(docDir(id), 'meta.json'), 'utf8'));
+}
+
+// 文書の実体がどこにあるか。読み書きは全部ここを通す。
+// inPlace なら開いた元のファイルを直に読み書きする (注釈が元の文書に残る)。
+// 既定は今までどおり data/<id>/doc.html のコピー
+function docFile(id, meta) {
+  const m = meta || readMeta(id);
+  return m.inPlace ? m.sourcePath : path.join(docDir(id), 'doc.html');
+}
+
+// in-place のとき、開いたあとに元ファイルが外で書き換わったか。
+// 変わっていてもこちらからは何もしない (ベースの読み直しは人が押す)
+function sourceChanged(meta) {
+  if (!meta.inPlace || !meta.sourceMtimeMs) return false;
+  try {
+    return fs.statSync(meta.sourcePath).mtimeMs !== meta.sourceMtimeMs;
+  } catch {
+    return false;
+  }
+}
+
+function stampSourceMtime(meta) {
+  if (!meta.inPlace) return meta;
+  try {
+    meta.sourceMtimeMs = fs.statSync(meta.sourcePath).mtimeMs;
+  } catch { /* 元ファイルが消えていたら触らない */ }
+  return meta;
 }
 
 function writeMeta(id, meta) {
@@ -128,11 +157,12 @@ const creatingBases = new Set();
 
 function createBase(id) {
   const meta = readMeta(id);
-  const html = fs.readFileSync(path.join(docDir(id), 'doc.html'), 'utf8');
+  const html = fs.readFileSync(docFile(id, meta), 'utf8');
   // 読み込み中に入った人の編集は、次の読み直しの対象として数え直せるよう、開始時点で 0 にしておく
   meta.baseVersion = meta.version || 0;
   meta.humanEditsSinceBase = 0;
   delete meta.baseSessionId;
+  stampSourceMtime(meta);          // いま読んだ版を覚える。以後ここからのズレが「古い」の根拠
   writeMeta(id, meta);
   const prompt = `これからユーザが読む文書です。読み終えたら「OK」とだけ返してください。\n\n${docTextForBase(html)}`;
   const started = Date.now();
@@ -278,23 +308,73 @@ async function handleAsk(req, res) {
 }
 
 async function handleOpen(req, res) {
-  const { path: src, model } = await readBody(req);
+  const { path: src, model, inPlace, fresh } = await readBody(req);
   const abs = path.resolve(String(src || '').replace(/^~(?=\/)/, os.homedir()));
   if (!/\.html?$/i.test(abs) || !fs.existsSync(abs)) return sendJson(res, 400, { error: 'HTML ファイルのパスを指定してください' });
+
+  // 同じファイルを開き直したら、前の文書を返す。開くたびに id が増えると data/ が膨らみ、
+  // ベースセッションも焚き直しになる。`fresh` を渡せば、それでも新しく作れる (二重に開くのは禁止しない)
+  if (!fresh) {
+    const found = listDocs().find((m) => m.sourcePath === abs && !!m.inPlace === !!inPlace);
+    if (found) {
+      return sendJson(res, 200, {
+        id: found.id, reused: true, title: found.title,
+        sourceChanged: sourceChanged(found), tooLarge: (found.bytes || 0) > 100 * 1024,
+      });
+    }
+  }
+
   const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
   const slug = path.basename(abs).replace(/\.html?$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
   const id = `${stamp}-${slug}-${crypto.randomBytes(2).toString('hex')}`;
   fs.mkdirSync(path.join(DATA_DIR, id, 'history'), { recursive: true });
   const html = fs.readFileSync(abs, 'utf8');
   fs.writeFileSync(path.join(DATA_DIR, id, 'source.html'), html);
-  fs.writeFileSync(path.join(DATA_DIR, id, 'doc.html'), html);
+  // in-place では元のファイルが文書そのもの。コピー (doc.html) は作らない
+  if (!inPlace) fs.writeFileSync(path.join(DATA_DIR, id, 'doc.html'), html);
   const title = (html.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || path.basename(abs);
-  writeMeta(id, { id, title: title.trim(), sourcePath: abs, model: MODELS.includes(model) ? model : 'haiku', bytes: html.length, createdAt: new Date().toISOString() });
+  writeMeta(id, { id, title: title.trim(), sourcePath: abs, inPlace: !!inPlace, model: MODELS.includes(model) ? model : 'haiku', bytes: html.length, createdAt: new Date().toISOString() });
   createBase(id);
   sendJson(res, 200, { id, tooLarge: html.length > 100 * 1024 });
 }
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.jpg': 'image/jpeg' };
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+  '.svg': 'image/svg+xml', '.avif': 'image/avif', '.ico': 'image/x-icon',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.json': 'application/json',
+};
+
+// 文書と同じ dir に置かれた素材 (style.css・画像・フォント) を配る。
+//
+// 文書は iframe の about:blank に流し込んでいるので、`href="style.css"` のような
+// **相対 URL が何にも解決できず、CSS が当たらないままレイアウトが崩れる**。
+// 元の dir を基準にここから配り直す。
+//
+// `<base>` を差し込まないのは、本文のリンク (`href="index.html"`) まで巻き込むため。
+// 素材だけを書き換えるのは画面側 (`retargetAssets`)。
+function sendAsset(res, id, rel) {
+  const meta = readMeta(id);
+  const root = path.dirname(meta.sourcePath);
+  const abs = path.resolve(root, decodeURIComponent(rel));
+  // 文書の dir の外へは出さない (`../../.ssh/id_rsa` のような相対パスを断つ)
+  if (abs !== root && !abs.startsWith(root + path.sep)) return sendJson(res, 403, { error: 'outside the document folder' });
+  let st;
+  try {
+    st = fs.statSync(abs);
+  } catch {
+    return sendJson(res, 404, { error: 'not found' });
+  }
+  if (!st.isFile()) return sendJson(res, 404, { error: 'not found' });
+  res.writeHead(200, {
+    'Content-Type': MIME[path.extname(abs).toLowerCase()] || 'application/octet-stream',
+    'Content-Length': st.size,
+    'Cache-Control': 'no-cache',
+  });
+  fs.createReadStream(abs).pipe(res);
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -311,7 +391,7 @@ const server = http.createServer(async (req, res) => {
       const base = creatingBases.has(m[1]) ? 'creating' : meta.baseSessionId ? 'ready' : 'none';
       const pendingFile = path.join(docDir(m[1]), 'pending.json');
       const pending = fs.existsSync(pendingFile) ? JSON.parse(fs.readFileSync(pendingFile, 'utf8')) : [];
-      return sendJson(res, 200, { meta, base, pending });
+      return sendJson(res, 200, { meta, base, pending, sourceChanged: sourceChanged(meta) });
     }
     if (m && req.method === 'PATCH') {
       const { model } = await readBody(req);
@@ -331,10 +411,13 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true });
     }
 
+    m = p.match(/^\/api\/doc\/([a-z0-9-]+)\/asset\/(.+)$/);
+    if (m && req.method === 'GET') return sendAsset(res, m[1], m[2]);
+
     m = p.match(/^\/api\/doc\/([a-z0-9-]+)\/html$/);
     if (m && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-      return res.end(fs.readFileSync(path.join(docDir(m[1]), 'doc.html')));
+      return res.end(fs.readFileSync(docFile(m[1])));
     }
     if (m && req.method === 'PUT') {
       const { html, turnId, baseVersion, source } = await readBody(req);
@@ -343,12 +426,15 @@ const server = http.createServer(async (req, res) => {
       const meta = bumpVersion(m[1], baseVersion, res);
       if (!meta) return;
       if (source === 'human') meta.humanEditsSinceBase = (meta.humanEditsSinceBase || 0) + 1;
-      // 質問 1 回ぶんを書き込む直前の状態を残す (undo の最後の手段)
+      const file = docFile(m[1], meta);
+      // 質問 1 回ぶんを書き込む直前の状態を残す (undo の最後の手段)。
+      // in-place で元ファイルを上書きするときも、控えは data/ 側に積む
       if (turnId && /^t_[a-z0-9]+$/.test(turnId)) {
         const snap = path.join(dir, 'history', `${turnId}.html`);
-        if (!fs.existsSync(snap)) fs.copyFileSync(path.join(dir, 'doc.html'), snap);
+        if (!fs.existsSync(snap)) fs.copyFileSync(file, snap);
       }
-      fs.writeFileSync(path.join(dir, 'doc.html'), html);
+      fs.writeFileSync(file, html);
+      stampSourceMtime(meta);        // 自分が書いた分を「外で変わった」と数えない
       writeMeta(m[1], meta);
       return sendJson(res, 200, { ok: true, version: meta.version, humanEditsSinceBase: meta.humanEditsSinceBase || 0 });
     }

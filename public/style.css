@@ -154,6 +154,10 @@ main { flex: 1; display: flex; min-height: 0; }
 .stale { background: #c5221f; color: #fff; padding: 6px 14px; font-size: 13px; }
 .stale a { color: #fff; font-weight: 600; }
 .stale[hidden] { display: none; }
+/* 元ファイルが外で変わっただけ。保存は止まらないので、赤より弱い色にする */
+.stale.src { background: #e8a71a; color: #231a00; display: flex; align-items: center; gap: 10px; }
+.stale.src button { border: 1px solid #231a00; background: transparent; color: inherit; border-radius: 6px; padding: 2px 9px; cursor: pointer; font-size: 12px; }
+.inplace { display: flex; align-items: center; gap: 4px; color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
 
 /* ヘッダは折り返さない。狭いときはパス入力欄が縮む */
 .bar > * { flex-shrink: 0; white-space: nowrap; }
