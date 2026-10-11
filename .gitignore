@@ -7,3 +7,5 @@ node_modules/
 host/run.sh
 # E2E の作業場所
 e2e/.out/
+# 作業メモ (superpowers の spec 以外の作業場所。公開しない)
+.superpowers/
