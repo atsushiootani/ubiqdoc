@@ -37,6 +37,13 @@ test('source の http(s) 以外は捨てる', () => {
   assert.deepEqual(a.sourceUrls, ['https://ok.example/']);
 });
 
+test('link の href は http(s) だけ残す', () => {
+  const bad = parseAnswer('<ubiqdoc-link target="x" href="javascript:alert(1)"></ubiqdoc-link>').annotations[0];
+  assert.equal(bad.href, undefined);
+  const ok = parseAnswer('<ubiqdoc-link target="x" href="https://ok.example/p"></ubiqdoc-link>').annotations[0];
+  assert.equal(ok.href, 'https://ok.example/p');
+});
+
 test('閉じていないタグは parseError にする', () => {
   const r = parseAnswer('答え<ubiqdoc-popover target="x">途中で切れた');
   assert.equal(r.annotations.length, 0);

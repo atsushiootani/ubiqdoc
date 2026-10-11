@@ -19,7 +19,7 @@ function toAnnotation(kind, at, inner) {
     kind,
     target: !at.target || at.target === 'selection' ? 'selection' : { exact: at.target, prefix: at.prefix || '' },
     title: at.title,
-    href: at.href,
+    href: /^https?:\/\/\S+$/.test(at.href || '') ? at.href : undefined,
     body: inner.trim(),
     dependsOn: (at.depends || '').split(/[\s,]+/).filter((x) => /^a_\d+$/.test(x)),
     sourceUrls: (at.source || '').split(/\s+/).filter((u) => /^https?:\/\/\S+$/.test(u)),

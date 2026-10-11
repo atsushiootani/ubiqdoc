@@ -47,6 +47,9 @@
     return false;
   }
 
+  // http(s) 以外 (javascript: など) は URL として扱わない
+  function safeUrl(u) { return typeof u === 'string' && /^https?:\/\//.test(u) ? u : ''; }
+
   function shortUrl(u) {
     try { const x = new URL(u); return x.hostname + (x.pathname.length > 1 ? x.pathname.slice(0, 30) : ''); } catch { return u; }
   }
@@ -138,7 +141,7 @@
       const g = this.hitGroup(e.clientX, e.clientY);
       if (!g) return;
       if (g.kind === 'link') {
-        const href = g.items.find((i) => i.href)?.href || g.items[0].sourceUrls?.[0];
+        const href = safeUrl(g.items.find((i) => safeUrl(i.href))?.href) || safeUrl(g.items[0].sourceUrls?.find(safeUrl));
         if (href) window.open(href, '_blank', 'noopener');
       } else if (g.kind === 'section') {
         this.toggleCard(g);
@@ -157,7 +160,7 @@
       if (a.kind === 'section') sanitizeInto(a.body || '', body);
       else body.textContent = a.kind === 'link' ? (a.href || '') : (a.body || '');
       box.appendChild(body);
-      const urls = [...new Set([...(a.sourceUrls || []), ...(a.kind === 'link' && a.href ? [a.href] : [])])];
+      const urls = [...new Set([...(a.sourceUrls || []), ...(a.kind === 'link' ? [a.href] : [])].filter(safeUrl))];
       if (urls.length) {
         const src = el('div', 'src');
         src.append('出典: ');
