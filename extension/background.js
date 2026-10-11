@@ -154,7 +154,8 @@ chrome.action.onClicked.addListener(async (tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES });
-    await chrome.tabs.sendMessage(tab.id, { type: 'run', force: true });
+    // 強制はしない (host は初回と本文が変わったときだけ先回りを走らせる)。やり直しはサイドパネルから
+    await chrome.tabs.sendMessage(tab.id, { type: 'run', force: false });
   } catch (e) {
     chrome.runtime.sendMessage({ type: 'status', tabId: tab.id, status: { stage: 'error', message: `このページでは動かせません: ${e.message}` } }).catch(() => {});
   }

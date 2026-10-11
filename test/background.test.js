@@ -51,3 +51,9 @@ test('先回りが失敗すると、バッジが赤い ! になり、サイド�
   on.updated(7, { url: 'https://e.example/other' });
   assert.deepEqual(plain(log), [['badge', '']]);
 });
+
+test('ツールバーのボタンは force なしで先回りを頼む', async () => {
+  const { log, on } = load();
+  await on.clicked({ id: 3 });
+  assert.deepEqual(plain(log.find((l) => l[0] === 'tab')[1]), { type: 'run', force: false });
+});
