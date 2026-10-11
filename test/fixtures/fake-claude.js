@@ -54,6 +54,9 @@ function answer(prompt, context) {
         : `<ubiqdoc-popover ${attrs}>${c.label}の説明</ubiqdoc-popover>`;
     }).join('\n');
   }
+  if (prompt.includes('[質問]') && prompt.includes('概念なしで')) {
+    return '説明です。<ubiqdoc-popover target="selection">選んだ語句の説明</ubiqdoc-popover>';
+  }
   if (prompt.includes('[質問]')) {
     return '説明です。<ubiqdoc-popover target="selection" concept="test-concept" category="personal">選んだ語句の説明</ubiqdoc-popover>';
   }

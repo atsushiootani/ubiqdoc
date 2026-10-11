@@ -119,8 +119,9 @@ function createHost({ dataDir, run } = {}) {
       const { key, page } = mustPage(m.url);
       const a = page.annotations.find((x) => x.id === m.annotationId);
       if (!a) throw new Error('補足が見つかりません');
-      const concept = a.concept || { key: a.anchor.exact, category: 'work' };
-      const c = profile.add({ key: concept.key, label: concept.label || a.anchor.exact, category: concept.category, aliases: [a.anchor.exact], fromUrl: page.url });
+      const concept = ops.conceptOf(a);
+      const category = (a.concept && a.concept.category) || 'work';
+      const c = profile.add({ key: concept.key, label: concept.label || a.anchor.exact, category, aliases: [a.anchor.exact], fromUrl: page.url });
       return { conceptId: c.id, label: c.label, view: viewOf(key) };
     },
     'unmark-known': (m) => ({ removed: !!profile.remove(m.conceptId) }),

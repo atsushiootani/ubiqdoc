@@ -107,6 +107,20 @@ test('ドラッグして聞く → 補足が足される → 取り消す', asyn
   assert.equal(u.data.view.annotations.filter((a) => a.turnId === 't_ask').length, 0);
 });
 
+test('小窓で聞いた concept の無い補足も、知ってるで隠れる (記録には concept を書き足さない)', async (t) => {
+  const h = startHost(t);
+  await open(h);
+  const quote = { exact: '在庫引当', prefix: '月末に締める。', suffix: 'は夜間に' };
+  const r = await h.req('ask', { url: URL1, windowId: 'w_1', turnId: 't_ask', selection: '在庫引当', quote, context: TEXT, asides: '', question: '概念なしで' });
+  const added = r.data.added[0];
+  assert.equal(added.concept, undefined);
+  const k = await h.req('mark-known', { url: URL1, annotationId: added.id });
+  const shown = k.data.view.annotations.find((a) => a.id === added.id);
+  assert.equal(shown.hidden, true);
+  assert.equal(shown.concept, undefined);
+  assert.equal((await h.req('profile-list')).data.work.length, 1);
+});
+
 test('セクション ↔ ポップオーバーの変換', async (t) => {
   const h = startHost(t);
   const v = (await open(h)).data.view;

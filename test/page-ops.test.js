@@ -137,3 +137,16 @@ test('view: 知っている概念の補足には hidden を立て、orphaned は
   assert.equal(v.orphaned.length, 1);
   assert.equal(v.key, 'k');
 });
+
+test('conceptOf / view: concept の無い補足は選んだ語句で照合し、知っていれば hidden', () => {
+  const page = newPage();
+  ops.addAnnotation(page, TEXT, ann('受注伝票', { origin: 'ask', sourceUrls: [] }), { onConflict: 'pending' });
+  const a = page.annotations[0];
+  assert.equal(a.concept, undefined);
+  assert.deepEqual(ops.conceptOf(a), { key: '受注伝票', label: '受注伝票' });
+  const profile = { knows: (c) => c.key === '受注伝票' };
+  assert.equal(ops.isVisible(a, profile), false);
+  assert.equal(ops.view(page, profile, 'k').annotations[0].hidden, true);
+  assert.equal(ops.view(page, noProfile, 'k').annotations[0].hidden, false);
+  assert.equal(page.annotations[0].concept, undefined);
+});

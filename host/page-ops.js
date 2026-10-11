@@ -36,8 +36,16 @@ function addAnnotation(page, text, ann, { onConflict }) {
   return { status: 'added', annotation: a };
 }
 
+// 「知ってる」で照合する概念。小窓で聞いた補足には concept が無いことがあるので、
+// そのときは選んだ語句そのものを概念として扱う (記録には書き足さない。知ってるはプロフィールにだけ残す)
+function conceptOf(a) {
+  if (a.concept) return a.concept;
+  return a.anchor && a.anchor.exact ? { key: a.anchor.exact, label: a.anchor.exact } : null;
+}
+
 function isVisible(a, profile) {
-  return a.state === 'shown' && !(a.concept && profile.knows(a.concept));
+  const c = conceptOf(a);
+  return a.state === 'shown' && !(c && profile.knows(c));
 }
 
 function selectConcepts(concepts, { page, profile }) {
@@ -122,7 +130,7 @@ function discardOrphan(page, id) {
 function view(page, profile, key) {
   return {
     key, url: page.url, title: page.title, model: page.model,
-    annotations: page.annotations.filter((a) => a.state === 'shown').map((a) => ({ ...a, hidden: !!(a.concept && profile.knows(a.concept)) })),
+    annotations: page.annotations.filter((a) => a.state === 'shown').map((a) => ({ ...a, hidden: !isVisible(a, profile) })),
     orphaned: page.annotations.filter((a) => a.state === 'orphaned'),
     pending: page.pending,
     dropped: page.dropped,
@@ -130,4 +138,4 @@ function view(page, profile, key) {
   };
 }
 
-module.exports = { LIMIT, addAnnotation, isVisible, selectConcepts, reanchor, undoTurn, convert, approve, reject, discardOrphan, view };
+module.exports = { LIMIT, addAnnotation, conceptOf, isVisible, selectConcepts, reanchor, undoTurn, convert, approve, reject, discardOrphan, view };
