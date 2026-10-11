@@ -2060,11 +2060,11 @@ git commit -m "feat: ベースセッションと先回りの 3 段"
 | `mark-known` | `url, annotationId` | `{ conceptId, label, view }` | — |
 | `unmark-known` | `conceptId` | `{ removed }` | — |
 | `profile-list` | — | `{ personal, work }` | — |
-| `profile-remove` | `id` | `{ removed }` | — |
+| `profile-remove` | `conceptId` | `{ removed }` | — |
 | `undo-turn` | `url, turnId` | `{ view }` | — |
-| `convert` | `url, id, to` | `{ view }` | — |
+| `convert` | `url, annotationId, to` | `{ view }` | — |
 | `approve` / `reject` | `url, pid` | `{ view }` | — |
-| `discard-orphan` | `url, id` | `{ view }` | — |
+| `discard-orphan` | `url, annotationId` | `{ view }` | — |
 
 - 返信の形: 途中は `{ id, type: 'event', event, data }`、最後に `{ id, type: 'result', data }` か `{ id, type: 'error', message }`
 
@@ -3813,7 +3813,7 @@ function renderTurns(view) {
         : a.kind === 'section' ? `<button data-conv="popover" data-id="${a.id}">→ ポップオーバーにする</button>` : '';
       return `<div class="row"><span>${esc(KIND[a.kind])} · ${a.id} 「${esc(a.anchor.exact)}」${a.hidden ? ' (知ってる)' : ''}</span>${conv}<button data-jump="${a.id}">見る</button></div>`;
     }).join('')}<div class="actions"><button data-undo>取り消す</button></div>`;
-    div.querySelectorAll('[data-conv]').forEach((b) => b.addEventListener('click', () => act('convert', { id: b.dataset.id, to: b.dataset.conv })));
+    div.querySelectorAll('[data-conv]').forEach((b) => b.addEventListener('click', () => act('convert', { annotationId: b.dataset.id, to: b.dataset.conv })));
     div.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => sendTab({ type: 'jump', id: b.dataset.jump }).catch(() => {})));
     div.querySelector('[data-undo]').addEventListener('click', () => act('undo-turn', { turnId }));
     box.appendChild(div);
@@ -3846,7 +3846,7 @@ function renderOrphans(view) {
     div.className = 'item';
     div.innerHTML = `<div class="label">「${esc(a.anchor.exact)}」</div><div class="muted">${esc(String(a.body || '').replace(/<[^>]+>/g, '').slice(0, 120))}</div>
       <div class="actions"><button data-d>捨てる</button></div>`;
-    div.querySelector('[data-d]').addEventListener('click', () => act('discard-orphan', { id: a.id }));
+    div.querySelector('[data-d]').addEventListener('click', () => act('discard-orphan', { annotationId: a.id }));
     box.appendChild(div);
   }
 }
@@ -3870,7 +3870,7 @@ async function renderProfile() {
       div.innerHTML = `<div class="row"><span class="label">${esc(c.label)}</span><span>${esc(c.key)}</span></div>
         ${c.aliases?.length ? `<div class="muted">${esc(c.aliases.join(' / '))}</div>` : ''}
         <div class="actions"><button data-x>戻す (知らないことにする)</button></div>`;
-      div.querySelector('[data-x]').addEventListener('click', async () => { await request('profile-remove', { id: c.id }); renderProfile(); });
+      div.querySelector('[data-x]').addEventListener('click', async () => { await request('profile-remove', { conceptId: c.id }); renderProfile(); });
       box.appendChild(div);
     }
   }
