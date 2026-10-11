@@ -107,7 +107,7 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 // 許可リストのうち、アクセス権のあるサイトにだけ content script を登録する
-async function syncContentScripts() {
+async function doSyncContentScripts() {
   const { allowlist } = await settings();
   const granted = [];
   for (const e of allowlist) {
@@ -118,6 +118,15 @@ async function syncContentScripts() {
     await chrome.scripting.registerContentScripts([{ id: 'ubq', matches: granted, js: CONTENT_FILES, runAt: 'document_idle', persistAcrossSessions: true }]);
   }
 }
+
+// 同時に走ると unregister と register が入り混じるので、1 本ずつ順に行う。
+// 各回は開始時に storage を読み直すので、最後に積まれた回が必ず最新の一覧を見る
+let syncing = Promise.resolve();
+function requestSync() {
+  syncing = syncing.then(doSyncContentScripts, doSyncContentScripts).catch((e) => console.error('[sync]', e.message));
+  return syncing;
+}
+function syncContentScripts() { return requestSync(); }
 
 chrome.runtime.onInstalled.addListener(async (d) => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
