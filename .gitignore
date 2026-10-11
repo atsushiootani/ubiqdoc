@@ -3,3 +3,7 @@ data/
 logs/
 node_modules/
 .DS_Store
+# install.sh が生成するラッパ (node / claude の絶対パス入り)
+host/run.sh
+# E2E の作業場所
+e2e/.out/

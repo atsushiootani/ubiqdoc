@@ -3,7 +3,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { runClaude } = require('./core/claude.js');
+const { SYSTEM_PROMPT, buildFirstPrompt, buildFollowupPrompt } = require('./core/prompts.js');
+const { parseAnswer } = require('./core/answer.js');
 
 // PORT は他のプロセスの環境から漏れてくることがあるので、専用の名前を先に見る
 // (ダッシュボードの shell が PORT=38766 を持っていて、素で起動すると EADDRINUSE になった)
@@ -14,35 +16,7 @@ const DATA_DIR = process.env.UBIQDOC_DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const MODELS = ['haiku', 'sonnet', 'opus'];
 
-// claude のセッションは cwd ごとに保存されるので、resume できるよう cwd は固定する。
-// 作業中のリポジトリ配下にすると、その CLAUDE.md を拾ってしまうので、どのプロジェクトにも属さない場所に置く
-const CLAUDE_CWD = path.join(os.homedir(), '.cache', 'ubiqdoc');
-fs.mkdirSync(CLAUDE_CWD, { recursive: true });
 fs.mkdirSync(DATA_DIR, { recursive: true });
-
-// fork 先でもプロンプトキャッシュを効かせるため、ベースと fork で一字一句同じ system prompt を渡す
-// 書き込み指示は JSON ではなくタグで書かせる。長い HTML を JSON 文字列に入れさせると、
-// Haiku が閉じの " を 」 と書き間違えるなどしてパースが壊れた (2026-10-01 の試験で発生)
-const SYSTEM_PROMPT = `あなたは、ユーザが読んでいる文書に解説を書き込むアシスタントです。
-ユーザは文書中の語句を選んで質問します。まず質問への答えを日本語で簡潔に書き (タグだけの返答にしない)、そのあとに文書へ書き込む内容をタグで書いてください。
-書き込むものが無ければタグは書きません。
-
-使えるタグ (新しい注釈。自動で反映される):
-<ubiqdoc-popover target="selection">短い説明 (プレーンテキスト、200字以内)</ubiqdoc-popover>
-<ubiqdoc-section target="selection" title="見出し">HTML 断片 (p ul ol li code pre strong em a table h5 が使える)</ubiqdoc-section>
-<ubiqdoc-link target="selection" href="https://..."></ubiqdoc-link>
-
-- target は、ユーザが選んだ語句なら "selection"。別の語句に付けたいときは、文書の本文にそのまま現れる文字列を target に書き、直前の数文字を prefix 属性に書く
-- 既にある注釈を前提にした説明なら depends="a_01 a_02" のように注釈の ID を書く
-- 属性値の中に " を使わない
-
-kind の選び方: ユーザの指示 (「ポップオーバーで」「セクションで」「リンクだけ」など) があれば必ず従う。
-指示が無ければ、短く済む説明は popover、長く重要な説明は section、一次情報の URL を示すだけで足りるなら link にする。
-URL は確実に実在すると分かっているものだけを使う。
-
-既にある本文や注釈の書き換え (ユーザの承認後に反映される):
-<ubiqdoc-edit exact="書き換える元の文 (本文にそのまま現れる文字列)" reason="理由">新しい文 (HTML 断片可)</ubiqdoc-edit>
-本文の誤りや、注釈と合わせて直したほうが読みやすくなる箇所があるときだけ使う。`;
 
 function sendJson(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -112,45 +86,6 @@ function docTextForBase(html) {
   return html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '');
 }
 
-function runClaude(args, prompt, { onDelta } = {}) {
-  return new Promise((resolve, reject) => {
-    const env = { ...process.env };
-    delete env.CLAUDECODE;
-    const child = spawn('claude', [
-      '-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-      '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--disable-slash-commands',
-      '--append-system-prompt', SYSTEM_PROMPT,
-      ...args,
-    ], { cwd: CLAUDE_CWD, env });
-    let buf = '';
-    let result = null;
-    let stderr = '';
-    child.stdout.on('data', (chunk) => {
-      buf += chunk;
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line) continue;
-        let ev;
-        try { ev = JSON.parse(line); } catch { continue; }
-        if (ev.type === 'stream_event' && ev.event?.type === 'content_block_delta' && ev.event.delta?.type === 'text_delta') {
-          onDelta?.(ev.event.delta.text);
-        } else if (ev.type === 'result') {
-          result = ev;
-        }
-      }
-    });
-    child.stderr.on('data', (c) => { stderr += c; });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (result && !result.is_error) return resolve(result);
-      reject(new Error((result && result.result) || stderr.trim() || `claude exited with ${code}`));
-    });
-    child.stdin.end(prompt);
-  });
-}
-
 // ベースセッション: その時点の文書 (注釈・人の編集込み) を読ませた状態。質問のたびにここから fork する。
 // 人が本文を直したら読ませ直す (POST /api/doc/:id/rebase)
 const basePromises = new Map();
@@ -168,7 +103,7 @@ function createBase(id) {
   writeMeta(id, meta);
   const prompt = `これからユーザが読む文書です。読み終えたら「OK」とだけ返してください。\n\n${docTextForBase(html)}`;
   const started = Date.now();
-  const p = runClaude(['--model', meta.model], prompt).then((r) => {
+  const p = runClaude(['--model', meta.model], prompt, { systemPrompt: SYSTEM_PROMPT }).then((r) => {
     const m = readMeta(id);
     m.baseSessionId = r.session_id;
     m.baseModel = meta.model;
@@ -217,48 +152,6 @@ function rejectForeign(req, res) {
   return false;
 }
 
-function buildFirstPrompt({ selection, context, asides, question }) {
-  return [
-    `[選んだ語句]\n${selection}`,
-    `[語句の周辺の本文]\n${context}`,
-    `[この文書に既に入っている注釈]\n${asides || '(なし)'}`,
-    `[質問]\n${question}`,
-  ].join('\n\n');
-}
-
-function buildFollowupPrompt({ asides, question }) {
-  return `[この文書に既に入っている注釈 (最新)]\n${asides || '(なし)'}\n\n[質問]\n${question}`;
-}
-
-function parseAttrs(str) {
-  const out = {};
-  for (const m of str.matchAll(/([a-z]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) out[m[1]] = m[2] ?? m[3];
-  return out;
-}
-
-const TAG_RE = /<ubiqdoc-(popover|section|link|edit)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/ubiqdoc-\1>)/g;
-
-function parseAnswer(text) {
-  const annotations = [];
-  const edits = [];
-  for (const m of text.matchAll(TAG_RE)) {
-    const [, kind, attrStr, inner = ''] = m;
-    const at = parseAttrs(attrStr);
-    if (kind === 'edit') {
-      if (at.exact) edits.push({ exact: at.exact, replaceWith: inner.trim(), reason: at.reason || '' });
-      continue;
-    }
-    const target = !at.target || at.target === 'selection' ? 'selection' : { exact: at.target, prefix: at.prefix || '' };
-    annotations.push({
-      kind, target, title: at.title, href: at.href, body: inner.trim(),
-      dependsOn: (at.depends || '').split(/[\s,]+/).filter((x) => /^a_\d+$/.test(x)),
-    });
-  }
-  const reply = text.replace(TAG_RE, '').replace(/<ubiqdoc-[\s\S]*$/, '').trim();
-  const broken = !annotations.length && !edits.length && /<ubiqdoc-/.test(text);
-  return { reply, annotations, edits, parseError: broken ? '閉じていないタグがある' : undefined };
-}
-
 async function handleAsk(req, res) {
   const body = await readBody(req);
   const { docId, windowId, sessionId } = body;
@@ -281,7 +174,7 @@ async function handleAsk(req, res) {
       prompt = buildFirstPrompt(body);
     }
     try {
-      return { prompt, result: await runClaude(args, prompt, { onDelta: (t) => send('delta', { text: t }) }) };
+      return { prompt, result: await runClaude(args, prompt, { systemPrompt: SYSTEM_PROMPT, onDelta: (t) => send('delta', { text: t }) }) };
     } catch (e) {
       // ベースのセッションファイルが消えていたら作り直して 1 回だけやり直す
       if (!sessionId && retry && /No conversation found/i.test(e.message)) {
