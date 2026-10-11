@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "scripts": { "e2e": "node run.js" },
+  "dependencies": { "playwright-core": "^1.48.0" }
+}
