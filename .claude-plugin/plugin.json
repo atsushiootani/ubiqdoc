@@ -1,0 +1,13 @@
+{
+  "name": "ubiqdoc",
+  "displayName": "ubiqdoc",
+  "description": "A local document reader where you can drag any phrase and ask the AI about it on the spot. Answers are written back into the document as popovers, child sections or links, and you can ask about several phrases in parallel.",
+  "author": {
+    "name": "atsushiootani",
+    "url": "https://github.com/atsushiootani"
+  },
+  "homepage": "https://github.com/atsushiootani/ubiqdoc",
+  "repository": "https://github.com/atsushiootani/ubiqdoc",
+  "license": "MIT",
+  "keywords": ["reader", "annotation", "documents", "chat", "local"]
+}

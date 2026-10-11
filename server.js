@@ -8,6 +8,8 @@ const { spawn } = require('child_process');
 // PORT は他のプロセスの環境から漏れてくることがあるので、専用の名前を先に見る
 // (ダッシュボードの shell が PORT=38766 を持っていて、素で起動すると EADDRINUSE になった)
 const PORT = process.env.UBIQDOC_PORT || process.env.PORT || 8910;
+// 開いた文書のコピーと会話ログの置き場所。プラグインとして入れたときは、更新で消えない場所を
+// UBIQDOC_DATA_DIR で渡す (本体のディレクトリは版ごとに入れ替わるため)
 const DATA_DIR = process.env.UBIQDOC_DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const MODELS = ['haiku', 'sonnet', 'opus'];

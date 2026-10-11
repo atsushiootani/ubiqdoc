@@ -42,7 +42,17 @@ A local document reader where you can drag any phrase and ask an AI about it on 
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) の CLI (`claude`) にログイン済みであること。質問のたびに `claude -p` を起動する
 - macOS + Chrome で動作確認している
 
-## 使い方
+## Claude Code のプラグインとして入れる
+
+```bash
+claude plugin marketplace add atsushiootani/concier-chan-kit
+claude plugin install ubiqdoc@atsushiootani
+```
+
+セッションで `/ubiqdoc:open /abs/path/to/doc.html` と打つと、サーバを立ち上げて文書をブラウザで開く。
+既定ではコピーに書き込み、元のファイルには触らない (元ファイルに書きたいときはそう頼む)。コピーはプラグインのデータフォルダに残る (プラグインを更新しても消えない)。
+
+## 使い方 (リポジトリから直接動かす)
 
 ```bash
 git clone https://github.com/atsushiootani/ubiqdoc.git
