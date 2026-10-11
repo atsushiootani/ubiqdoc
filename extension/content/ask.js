@@ -119,7 +119,7 @@
       <div class="win-input"><textarea rows="1" placeholder="質問を入力"></textarea></div>`;
     box.querySelector('.term').textContent = quote.exact.trim();
     NS.overlay.layer.appendChild(box);
-    const win = { id, el: box, quote, context: contextOf(range), sessionId: null, busy: false };
+    const win = { id, el: box, quote, context: contextOf(range), sessionId: null, busy: false, pageKey: renderer.view?.key };
     windows.set(id, win);
 
     const ta = box.querySelector('textarea');
@@ -144,13 +144,19 @@
 
   async function ask(win, question) {
     if (win.busy) { NS.overlay.toast('この窓は返答待ちです。別の語句なら同時に聞けます'); return; }
+    // 窓を開いたページと今のページが違うなら、古い会話と語句では聞かない
+    if (renderer.view?.key !== win.pageKey) {
+      logLine(win, 'err', 'ページが切り替わったので、この窓では聞けません。語句を選び直してください');
+      return;
+    }
     win.busy = true;
     win.el.classList.add('busy');
     logLine(win, 'me', question);
     const out = logLine(win, 'ai', '…');
     const started = performance.now();
-    // 聞いた時点の表示の持ち主。答えが返るまでにページが遷移したら、補足の表示は更新しない
+    // 聞いた時点の表示の持ち主。答えが返るまでにページが遷移したら (key が変わる)、補足の表示は更新しない
     const url = renderer.view?.url || location.href;
+    const key = renderer.view?.key;
     let raw = '';
     try {
       const res = await NS.request('ask', {
@@ -164,7 +170,7 @@
       });
       win.sessionId = res.sessionId;
       out.textContent = res.reply || '(書き込みだけ行った)';
-      if (location.href === url) renderer.setView(res.view);
+      if (renderer.view?.key === key && res.view?.key === key) renderer.setView(res.view);
       for (const a of res.added) logLine(win, 'sys', `✎ ${KIND[a.kind] || a.kind}を追加 (${a.id})`);
       for (const p of res.pending) logLine(win, 'sys', `✎ 既存の補足 ${p.conflictWith} と重なったので承認待ちに回した`);
       if (res.unanchored) logLine(win, 'err', `差し込み位置が見つからなかった: ${res.unanchored} 件`);
