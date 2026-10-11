@@ -78,7 +78,8 @@ a { color: #1a73e8; }
     if (action) {
       const b = el('button');
       b.textContent = action.label;
-      b.onclick = () => { t.remove(); action.onClick(); };
+      // ページ側のスクリプトが押した「戻す」などは受け付けない
+      b.onclick = (e) => { if (!e.isTrusted) return; t.remove(); action.onClick(); };
       t.appendChild(b);
     }
     layer.appendChild(t);

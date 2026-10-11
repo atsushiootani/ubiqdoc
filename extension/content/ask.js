@@ -18,8 +18,9 @@
     document.addEventListener('mouseup', onMouseUp, true);
   }
 
+  // ページ側のスクリプトが作った偽のイベント (isTrusted が false) では、小窓も質問も動かさない
   function onMouseUp(e) {
-    if (e.target === NS.overlay.host) return;
+    if (!e.isTrusted || e.target === NS.overlay.host) return;
     setTimeout(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.rangeCount) { hideBtn(); return; }
@@ -39,7 +40,7 @@
     const r = range.getBoundingClientRect();
     btn.style.left = `${Math.min(r.right + 4, innerWidth - 90)}px`;
     btn.style.top = `${Math.max(4, r.top - 30)}px`;
-    btn.onclick = () => { hideBtn(); openWindow(range); };
+    btn.onclick = (e) => { if (!e.isTrusted) return; hideBtn(); openWindow(range); };
     NS.overlay.layer.appendChild(btn);
   }
 
@@ -125,9 +126,10 @@
     const ta = box.querySelector('textarea');
     box.querySelector('.win-head button').onclick = () => { box.remove(); windows.delete(id); };
     box.addEventListener('mousedown', () => { box.style.zIndex = ++z; });
-    box.querySelectorAll('.win-chips button').forEach((b) => { b.onclick = () => ask(win, b.dataset.q); });
+    box.querySelectorAll('.win-chips button').forEach((b) => { b.onclick = (e) => { if (e.isTrusted) ask(win, b.dataset.q); }; });
     ta.addEventListener('keydown', (e) => {
       e.stopPropagation();   // Notion のショートカットに食われないように
+      if (!e.isTrusted) return;
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         if (ta.value.trim()) { ask(win, ta.value.trim()); ta.value = ''; }

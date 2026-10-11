@@ -175,7 +175,8 @@
       const acts = el('div', 'acts');
       const known = el('button');
       known.textContent = '知ってる';
-      known.onclick = () => { this.hidePop(); this.onKnown(a); };
+      // ページ側のスクリプトが押した「知ってる」(isTrusted が false) では、プロフィールを書き換えない
+      known.onclick = (e) => { if (!e.isTrusted) return; this.hidePop(); this.onKnown(a); };
       acts.appendChild(known);
       box.appendChild(acts);
       return box;

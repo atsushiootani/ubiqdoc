@@ -125,6 +125,22 @@ const calls = (dir) => {
     console.log('ok セクションのカード');
 
     // 7. 選んで「AI に聞く」→ 小窓 → 答え → 補足が 1 つ増える
+    // 拡張は偽のイベント (isTrusted が false) を無視するので、本物のマウスでドラッグして選ぶ。
+    // 手前の手順で開いたカードが語句の上に重なるので、語句をもう一度押して先に閉じる
+    await page.mouse.click(p2.x, p2.y);
+    await page.locator('ubiqdoc-layer .card').waitFor({ state: 'detached' });
+    const ends = await page.evaluate(() => {
+      const p = [...document.querySelectorAll('#doc p')].find((x) => x.textContent.includes('在庫引当'));
+      const i = p.firstChild.data.indexOf('在庫引当');
+      const r = document.createRange();
+      r.setStart(p.firstChild, i);
+      r.setEnd(p.firstChild, i + 4);
+      const b = r.getBoundingClientRect();
+      return { x1: b.left + 1, x2: b.right - 1, y: b.top + b.height / 2 };
+    });
+    // ページ側のスクリプトが作った選択と偽の mouseup では、ボタンが出ない
+    // 直前の本物のクリックの mouseup の後始末 (setTimeout) が済むのを待ってから試す
+    await page.waitForTimeout(300);
     await page.evaluate(() => {
       const p = [...document.querySelectorAll('#doc p')].find((x) => x.textContent.includes('在庫引当'));
       const r = document.createRange();
@@ -134,11 +150,19 @@ const calls = (dir) => {
       getSelection().addRange(r);
       p.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     });
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('ubiqdoc-layer .askbtn').count(), 0);
+    await page.evaluate(() => getSelection().removeAllRanges());
+    await page.mouse.move(ends.x1, ends.y);
+    await page.mouse.down();
+    await page.mouse.move(ends.x2, ends.y, { steps: 8 });
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => getSelection().toString()), '在庫引当');
     await page.locator('ubiqdoc-layer .askbtn').click();
     await page.locator('ubiqdoc-layer .win-chips button', { hasText: '説明して' }).click();
     await page.locator('ubiqdoc-layer .win-log .ai', { hasText: '説明です。' }).waitFor({ timeout: 15000 });
     await page.waitForFunction(() => ['ubiqdoc-pop', 'ubiqdoc-sec'].reduce((n, k) => n + (CSS.highlights.get(k)?.size || 0), 0) === 3);
-    console.log('ok AI に聞く');
+    console.log('ok AI に聞く (偽の mouseup は無視)');
 
     // 8. 開き直しても claude は呼ばれない
     const before = calls(fakeDir);
