@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><title>ubiqdoc</title>
+<link rel="stylesheet" href="sidepanel.css"></head>
+<body>
+  <nav><button id="tab-page" class="on">このページ</button><button id="tab-profile">プロフィール</button></nav>
+  <section id="page">
+    <div id="status" class="status"></div>
+    <h3>書き込み履歴</h3><div id="turns"></div>
+    <h3>承認待ち</h3><div id="pending"></div>
+    <details id="orphanBox"><summary>見つからなくなった補足 <span id="orphanCount"></span></summary><div id="orphans"></div></details>
+  </section>
+  <section id="profile" hidden>
+    <input id="q" type="search" placeholder="絞り込む">
+    <h3>技術 (個人用)</h3><div id="personal"></div>
+    <h3>業務 (仕事用)</h3><div id="work"></div>
+  </section>
+  <script src="sidepanel.js"></script>
+</body></html>
