@@ -14,6 +14,11 @@ function normalizeUrl(u) {
   for (const k of [...url.searchParams.keys()]) {
     if (/^utm_/.test(k) || k === 'pvs') url.searchParams.delete(k);
   }
+  // Notion はタイトルの slug が URL に入り、改題で変わる。末尾の 32 桁の id だけを残してキーを保つ
+  if (/(^|\.)notion\.(so|site)$/.test(url.hostname)) {
+    const m = url.pathname.match(/([0-9a-f]{32})$/i);
+    if (m) url.pathname = `/${m[1].toLowerCase()}`;
+  }
   return url.toString();
 }
 

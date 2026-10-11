@@ -10,6 +10,14 @@ test('normalizeUrl: # 以降と utm_* / pvs を落とし、ほかのクエリは
   assert.equal(normalizeUrl('https://github.com/o/r/issues/1?utm_source=x&tab=files'), 'https://github.com/o/r/issues/1?tab=files');
 });
 
+test('normalizeUrl: Notion はタイトルの slug を捨てて id だけで照合する。ほかのサイトのパスはそのまま', () => {
+  const id = '0123456789abcdef0123456789ABCDEF';
+  assert.equal(pageKey(`https://www.notion.so/ws/Old-Title-${id}`), pageKey(`https://www.notion.so/ws/New-Title-${id}?pvs=4`));
+  assert.equal(normalizeUrl(`https://www.notion.so/ws/Old-Title-${id}`), `https://www.notion.so/${id.toLowerCase()}`);
+  assert.equal(normalizeUrl(`https://team.notion.site/Page-${id}`), `https://team.notion.site/${id.toLowerCase()}`);
+  assert.equal(normalizeUrl(`https://example.com/ws/Old-Title-${id}`), `https://example.com/ws/Old-Title-${id}`);
+});
+
 test('pageKey は 40 桁の hex で、正規化後が同じなら同じ', () => {
   const k = pageKey('https://www.notion.so/Page-abc123?pvs=4');
   assert.match(k, /^[0-9a-f]{40}$/);
