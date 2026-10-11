@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "ubiqdoc",
+  "version": "0.1.0",
+  "description": "読み手の知識に合わせて、ページに先回りで補足を付ける",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA37UfYdM6klr7NeoMIDAWF71l1BLQvggO8z0eAXcmZ6toEX4rKyaZAd7DdJgeLpavKt1DMBuQR/BUGbErDRbBLKZfs9ByY1emwBI0Z5yvnZGo9v8Y/+nOU8QgpBYat0JYyO0rvmRzDR9FzB48rXGTaXW+/4oq4RRF6UmgSQyZ1uMS9BlRyKRHk+VyO6loLdXX2KLJm9FtLCB1HwcOk2cqV5raDC+SO7E//zmjxMGBzaDN9uR97sL47aC0coR46Vt+HqA62iZ16qT0afbD2BvbAmEM59rZNRBQqAi36+RP21k/jLOpR/mp4lUEtQcgJAAh0rkmCW0HQFd/p75QumqC5wIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": ["nativeMessaging", "storage", "sidePanel", "scripting", "activeTab", "tabs"],
+  "optional_host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "ubiqdoc: このページに補足を付ける" },
+  "side_panel": { "default_path": "sidepanel/sidepanel.html" },
+  "options_page": "options/options.html"
+}
