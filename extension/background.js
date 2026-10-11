@@ -43,9 +43,15 @@ function scheduleIdle() {
 }
 
 function updateBadge(tabId, s) {
-  const text = s.stage === 'extract' ? '…' : s.stage === 'write' ? `${s.made}/${s.total}` : '';
+  const text = s.stage === 'extract' ? '…' : s.stage === 'write' ? `${s.made}/${s.total}` : s.stage === 'error' ? '!' : '';
   chrome.action.setBadgeText({ tabId, text }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ tabId, color: '#1a73e8' }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ tabId, color: s.stage === 'error' ? '#c5221f' : '#1a73e8' }).catch(() => {});
+}
+
+function setTabStatus(tabId, st) {
+  tabStatus.set(tabId, st);
+  updateBadge(tabId, st);
+  chrome.runtime.sendMessage({ type: 'status', tabId, status: st }).catch(() => {});
 }
 
 async function broadcast(msg) {
@@ -56,11 +62,9 @@ async function broadcast(msg) {
 function onHostMessage(msg) {
   const w = waiting.get(msg.id);
   if (!w) return;
-  if (msg.type === 'event' && msg.event === 'progress' && w.tabId != null) {
-    tabStatus.set(w.tabId, msg.data);
-    updateBadge(w.tabId, msg.data);
-    chrome.runtime.sendMessage({ type: 'status', tabId: w.tabId, status: msg.data }).catch(() => {});
-  }
+  if (msg.type === 'event' && msg.event === 'progress' && w.tabId != null) setTabStatus(w.tabId, msg.data);
+  // 先回りが途中で失敗したら、バッジとサイドパネルを「作成中」のまま固めずにエラーを出す
+  if (msg.type === 'error' && w.req.type === 'open-page' && w.tabId != null) setTabStatus(w.tabId, { stage: 'error', message: msg.message });
   w.reply({ ...msg, id: w.clientId });
   if (msg.type !== 'result' && msg.type !== 'error') return;
   waiting.delete(msg.id);
@@ -138,6 +142,12 @@ chrome.permissions.onAdded.addListener(syncContentScripts);
 chrome.permissions.onRemoved.addListener(syncContentScripts);
 chrome.storage.onChanged.addListener((c) => { if (c.allowlist) syncContentScripts(); });
 chrome.tabs.onRemoved.addListener((tabId) => tabStatus.delete(tabId));
+// 別のページに移ったら、前のページの進み具合とバッジを消す
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (!info.url) return;
+  tabStatus.delete(tabId);
+  chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
+});
 
 // 許可リストに無いページでは、ツールバーのボタンで実行する (activeTab の権限で差し込む)
 chrome.action.onClicked.addListener(async (tab) => {

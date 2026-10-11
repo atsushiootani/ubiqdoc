@@ -49,7 +49,7 @@ function renderStatus(view, st, err) {
   }
   if (!view && !err) lines.push('<div class="muted">このページではまだ補足を作っていません。ツールバーの ubiqdoc ボタンで始められます</div>');
   const s = statusText(st);
-  if (s) lines.push(`<div>${esc(s)}</div>`);
+  if (s && s !== err) lines.push(`<div>${esc(s)}</div>`);
   if (view?.dropped?.noSource) lines.push(`<div class="muted">出典が付けられず捨てた補足: ${view.dropped.noSource} 個</div>`);
   if (view?.truncated) lines.push('<div class="muted">本文が 100KB を超えたので、先頭だけを読ませました</div>');
   if (view) lines.push('<div class="actions"><button id="rerun">やり直す</button></div>');
@@ -167,7 +167,7 @@ $('#tab-profile').addEventListener('click', () => showTab('profile'));
 $('#q').addEventListener('input', renderProfile);
 chrome.runtime.onMessage.addListener((m) => {
   if (m.type === 'status' && m.tabId !== current.tabId) return;
-  if (m.type === 'status' && m.status?.stage === 'error') lastError = m.status.message;
+  if (m.type === 'status') lastError = m.status?.stage === 'error' ? m.status.message : null;
   if (['page-updated', 'profile-changed', 'status'].includes(m.type)) refresh();
 });
 chrome.tabs.onActivated.addListener(() => { lastError = null; refresh(); });
