@@ -4201,29 +4201,8 @@ git commit -m "docs: Chrome 拡張としての使い方"
 
 - [ ] **Step 4: 移行 (人に確認してから行う)**
 
-ここからはリポジトリの外を触る。各手順の前に、何をするかを人に見せて了承を取る。
+ここからはリポジトリの外 (手元の環境) を触る。手順は環境ごとに違うので、このリポジトリには書かない。各手順の前に、何をするかを人に見せて了承を取る。
 
-1. 作業用コピー (`~/PROGRAM/quickmemo/tech-blog/apps/ubiqdoc/`) の `data/` を、このリポジトリの `data/` に移す:
-
-```bash
-rsync -a ~/PROGRAM/quickmemo/tech-blog/apps/ubiqdoc/data/ ~/PROGRAM/public/ubiqdoc/data/
-```
-
-2. `~/Library/LaunchAgents/com.atsushi.ubiqdoc.dashboard.plist` の `WorkingDirectory` と、`StandardOutPath` / `StandardErrorPath` の `apps/ubiqdoc` を `~/PROGRAM/public/ubiqdoc` (絶対パス) に書き換え、`logs/` を作ってから読み込み直す:
-
-```bash
-mkdir -p ~/PROGRAM/public/ubiqdoc/logs
-launchctl unload ~/Library/LaunchAgents/com.atsushi.ubiqdoc.dashboard.plist
-launchctl load ~/Library/LaunchAgents/com.atsushi.ubiqdoc.dashboard.plist
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8910/
-```
-
-Expected: `200`。以前に開いた文書が一覧に出ること
-
-3. 作業用コピーを畳む (`rm -rf` は使わず、ゴミ箱へ移す):
-
-```bash
-mv ~/PROGRAM/quickmemo/tech-blog/apps/ubiqdoc ~/.Trash/ubiqdoc-apps-$(date +%Y%m%d)
-```
-
-4. アイデアの frontmatter の `app:` を新しい場所に向ける (`ideas/mup1iiu245c02c.md` と `ideas/mv36n5kdda7bc2.md`)。ダッシュボードのファイラが `apps/` 以外を開けるかを先に確かめ、開けなければ人に相談する
+1. 別の場所に置いていた作業用のコピーがあれば、その `data/` をこのリポジトリの `data/` に移す
+2. HTML リーダーを常駐させている仕組み (LaunchAgent など) があれば、実行先をこのリポジトリの `server.js` に向け直し、`http://127.0.0.1:8910/` が 200 を返し、以前に開いた文書が一覧に出ることを確かめる
+3. 作業用のコピーを畳む (消さずにゴミ箱へ移す)
