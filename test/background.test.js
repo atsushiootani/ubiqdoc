@@ -57,3 +57,26 @@ test('ツールバーのボタンは force なしで先回りを頼む', async (
   await on.clicked({ id: 3 });
   assert.deepEqual(plain(log.find((l) => l[0] === 'tab')[1]), { type: 'run', force: false });
 });
+
+test('別のページに移ったあとに届いた、前のページの進み具合はバッジに出さない', async () => {
+  const { log, on, port } = load();
+  await port.send({ id: 'c1', type: 'open-page', url: 'https://e.example/a' });
+  const id = log.find((l) => l[0] === 'post')[1].id;
+  on.updated(7, { url: 'https://e.example/b' });
+  log.length = 0;
+  on.host({ id, type: 'event', event: 'progress', data: { stage: 'write', made: 2, total: 3 } });
+  on.host({ id, type: 'error', message: '前のページの失敗' });
+  assert.deepEqual(plain(log.filter((l) => l[0] === 'badge' || l[0] === 'status')), []);
+});
+
+test('# だけが変わった遷移では、進み具合を消さない', async () => {
+  const { log, on, port } = load();
+  await port.send({ id: 'c1', type: 'open-page', url: 'https://e.example/a' });
+  const id = log.find((l) => l[0] === 'post')[1].id;
+  on.host({ id, type: 'event', event: 'progress', data: { stage: 'write', made: 1, total: 3 } });
+  log.length = 0;
+  on.updated(7, { url: 'https://e.example/a#heading' });
+  assert.deepEqual(plain(log.filter((l) => l[0] === 'badge')), []);
+  on.host({ id, type: 'event', event: 'progress', data: { stage: 'write', made: 2, total: 3 } });
+  assert.deepEqual(plain(log.filter((l) => l[0] === 'badge')), [['badge', '2/3']]);
+});

@@ -14,6 +14,8 @@ let seq = 0;
 let idleTimer = null;
 const waiting = new Map();      // host への要求 id → { clientId, tabId, reply, req }
 const tabStatus = new Map();    // tabId → 最後の progress
+const tabDoc = new Map();       // tabId → いま開いている文書の URL (# より前)。前のページの進み具合を捨てるのに使う
+const docOf = (u) => String(u || '').split('#')[0];
 
 function hostErrorText(err) {
   return /not found|Specified native messaging host|forbidden/i.test(err)
@@ -62,9 +64,11 @@ async function broadcast(msg) {
 function onHostMessage(msg) {
   const w = waiting.get(msg.id);
   if (!w) return;
-  if (msg.type === 'event' && msg.event === 'progress' && w.tabId != null) setTabStatus(w.tabId, msg.data);
+  // SPA で別のページに移ったあとに届いた、前のページの進み具合やエラーはバッジに出さない
+  const current = w.tabId != null && w.req.type === 'open-page' && tabDoc.get(w.tabId) === docOf(w.req.url);
+  if (msg.type === 'event' && msg.event === 'progress' && current) setTabStatus(w.tabId, msg.data);
   // 先回りが途中で失敗したら、バッジとサイドパネルを「作成中」のまま固めずにエラーを出す
-  if (msg.type === 'error' && w.req.type === 'open-page' && w.tabId != null) setTabStatus(w.tabId, { stage: 'error', message: msg.message });
+  if (msg.type === 'error' && current) setTabStatus(w.tabId, { stage: 'error', message: msg.message });
   w.reply({ ...msg, id: w.clientId });
   if (msg.type !== 'result' && msg.type !== 'error') return;
   waiting.delete(msg.id);
@@ -78,6 +82,7 @@ function sendHost(req, { tabId, reply }) {
   clearTimeout(idleTimer);
   const id = `r${++seq}`;
   waiting.set(id, { clientId: req.id, tabId, reply, req });
+  if (req.type === 'open-page' && tabId != null) tabDoc.set(tabId, docOf(req.url));
   try {
     connectHost().postMessage({ ...req, id });
   } catch (e) {
@@ -141,10 +146,12 @@ chrome.runtime.onStartup.addListener(syncContentScripts);
 chrome.permissions.onAdded.addListener(syncContentScripts);
 chrome.permissions.onRemoved.addListener(syncContentScripts);
 chrome.storage.onChanged.addListener((c) => { if (c.allowlist) syncContentScripts(); });
-chrome.tabs.onRemoved.addListener((tabId) => tabStatus.delete(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => { tabStatus.delete(tabId); tabDoc.delete(tabId); });
 // 別のページに移ったら、前のページの進み具合とバッジを消す
 chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (!info.url) return;
+  // # だけが変わったときは同じ文書なので、進み具合を残す
+  if (!info.url || docOf(info.url) === tabDoc.get(tabId)) return;
+  tabDoc.set(tabId, docOf(info.url));
   tabStatus.delete(tabId);
   chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
 });
