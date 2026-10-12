@@ -15,6 +15,7 @@ test('normalizeUrl: Notion はタイトルの slug を捨てて id だけで照�
   assert.equal(pageKey(`https://www.notion.so/ws/Old-Title-${id}`), pageKey(`https://www.notion.so/ws/New-Title-${id}?pvs=4`));
   assert.equal(normalizeUrl(`https://www.notion.so/ws/Old-Title-${id}`), `https://www.notion.so/${id.toLowerCase()}`);
   assert.equal(normalizeUrl(`https://team.notion.site/Page-${id}`), `https://team.notion.site/${id.toLowerCase()}`);
+  assert.equal(pageKey(`https://app.notion.com/p/acme/Old-Title-${id}`), pageKey(`https://app.notion.com/p/acme/New-Title-${id}?pvs=4`));
   assert.equal(normalizeUrl(`https://example.com/ws/Old-Title-${id}`), `https://example.com/ws/Old-Title-${id}`);
 });
 
