@@ -6,6 +6,7 @@
 }(typeof self !== 'undefined' ? self : this, () => {
   const DEFAULT_ALLOWLIST = [
     { pattern: 'https://www.notion.so/*', root: '.notion-page-content' },
+    { pattern: 'https://app.notion.com/*', root: '.notion-page-content' },
     { pattern: 'https://*.notion.site/*', root: '.notion-page-content' },
     { pattern: 'https://github.com/*', root: '.markdown-body' },
   ];

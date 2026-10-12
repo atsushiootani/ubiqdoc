@@ -18,3 +18,9 @@ test('entryFor: 最初に当たった行を返す', () => {
   assert.equal(entryFor(DEFAULT_ALLOWLIST, 'https://github.com/o/r/issues/1').root, '.markdown-body');
   assert.equal(entryFor(DEFAULT_ALLOWLIST, 'https://example.com/'), null);
 });
+
+test('既定の許可リストは app.notion.com の Notion も含む', () => {
+  const e = entryFor(DEFAULT_ALLOWLIST, 'https://app.notion.com/p/acme/Spec-0123456789abcdef0123456789abcdef');
+  assert.ok(e);
+  assert.equal(e.root, '.notion-page-content');
+});

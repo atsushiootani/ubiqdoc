@@ -46,14 +46,101 @@ A local document reader where you can drag any phrase and ask an AI about it on 
 
 開いたページのうち、読み手が知らなそうな概念に、聞かれる前に補足 (出典付き) を付けておく拡張です。補足に「知ってる」を返すと、その概念は知識プロフィールに入り、以後どのページでも付きません。語句を選んで「AI に聞く」で、HTML リーダーと同じ小窓も使えます。
 
-1. `bash host/install.sh` を実行する (native host の登録。`node` と `claude` の場所が変わったら再実行)
-2. `chrome://extensions` でデベロッパーモードを ON にし、「パッケージ化されていない拡張機能を読み込む」で `extension/` を選ぶ
-3. 開いたオプション画面で、自動で動かしたいサイトの「許可する」を押す (Notion と GitHub は最初から入っている)。ほかのページでは、ツールバーの ubiqdoc ボタンで動く
+### 必要なもの
 
-- 補足はページの DOM を書き換えずに重ねて描くので、Notion で編集しても補足が本文に混ざりません
-- 知識プロフィールは `data/profile/personal.json` (技術) と `data/profile/work.json` (業務) にあります。**`data/` はコミットされません**。`data/` が git の無視対象でない、または過去にコミットされていると、host は起動を拒否します
+- Chrome 116 以上 (macOS で動作確認している)
+- Node.js 18 以上
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) の CLI (`claude`) にログイン済みであること。拡張は `claude -p` で補足を作る
+
+### インストール
+
+1. このリポジトリを手元に置く
+
+   ```bash
+   git clone https://github.com/atsushiootani/ubiqdoc.git
+   cd ubiqdoc
+   ```
+
+2. native host を Chrome に登録する
+
+   ```bash
+   bash host/install.sh
+   ```
+
+   `登録しました: …/NativeMessagingHosts/com.atsushiootani.ubiqdoc.json` と `拡張 ID: …` が出れば成功です。拡張から呼ばれたときだけ起動するので、常駐するプロセスはありません。
+
+   Chrome が起動するプロセスにはログインシェルの `PATH` が渡らないので、このスクリプトは実行した時点の `node` と `claude` の絶対パスを焼き込んだラッパ (`host/run.sh`) を作ります。`node` や `claude` を入れ直して場所が変わったら、もう一度実行してください。
+
+3. 拡張を読み込む
+
+   1. `chrome://extensions` を開き、右上の「デベロッパーモード」を ON にする
+   2. 「パッケージ化されていない拡張機能を読み込む」で、このリポジトリの `extension/` を選ぶ
+   3. 一覧に出た ID が、手順 2 で出た「拡張 ID」と同じことを確かめる (manifest の `key` で固定しているので、どの環境でも同じになる)
+
+4. オプション画面で確かめる (初回は自動で開く。あとから開くときは、拡張の「詳細」→「拡張機能のオプション」)
+
+   - 「native host」が「つながっています」になっていること。エラーが出ていたら、その文に従う (下の「うまく動かないとき」も参照)
+   - 許可リストの各行の「許可する」を押す。**許可したサイトだけ**、ページを開いたときに自動で補足を作ります。最初から入っているのは次のとおりです
+
+     | パターン | サイト |
+     |---|---|
+     | `https://www.notion.so/*` | Notion |
+     | `https://app.notion.com/*` | Notion |
+     | `https://*.notion.site/*` | 公開された Notion ページ |
+     | `https://github.com/*` | GitHub |
+
+   - ほかのサイトを自動にしたいときは、パターン (例: `https://example.com/*`) と、補足を付ける範囲の CSS セレクタ (本文の根。サイドバーなどを除くため。省略すると `main`) を入れて「追加」する
+
+5. ローカルの HTML ファイル (`file://`) でも使うなら、拡張の「詳細」で「ファイルの URL へのアクセスを許可する」を ON にする
+
+### 使い方
+
+- **許可リストのサイト**: ページを開くと自動で補足を作ります。初回は数十秒かかり、ツールバーのバッジに `3/20` のように進み具合が出ます。2 回目からは保存した補足をすぐに出します
+- **それ以外のページ**: ツールバーの ubiqdoc ボタンを押すと、そのページで補足を作り、サイドパネルが開きます
+- 下線の付いた語句にマウスを乗せると説明が出ます。セクションの補足は語句をクリックするとカードで開きます
+- 知っている概念なら「知ってる」を押します。画面下のトーストの「戻す」で取り消せます。あとからでも、サイドパネルの「プロフィール」タブから戻せます
+- 語句を選ぶと「AI に聞く」ボタンが出ます。小窓で質問すると、答えが補足として足されます
+- サイドパネル (ツールバーのボタンで開く) で、書き込み履歴の取り消し、ポップオーバーとセクションの変換、承認待ちの処理ができます。補足を作り直したいときは「やり直す」
+
+### 更新
+
+```bash
+git pull
+```
+
+そのあと `chrome://extensions` で ubiqdoc の再読み込みボタンを押します。`host/` を変えた更新でも、host は呼ばれるたびに起動し直すので、追加の作業はいりません (`node` や `claude` の場所を変えたときだけ `bash host/install.sh` を実行し直す)。
+
+許可リストに行が増えた更新では、オプション画面で新しい行の「許可する」を押してください。許可リストを自分で編集したことがあると、新しい既定の行は自動では入らないので、手で「追加」してください。
+
+### うまく動かないとき
+
+| 症状 | 対処 |
+|---|---|
+| オプション画面やサイドパネルに「host が未登録です」と出る | リポジトリで `bash host/install.sh` を実行し、拡張を再読み込みする |
+| 開いただけでは補足が付かず、ツールバーのボタンを押すと付く | そのサイトが許可リストに無いか、まだ「許可する」を押していない。オプション画面で URL に合うパターンを足して許可する (Notion は URL が `www.notion.so` と `app.notion.com` の 2 通りある) |
+| バッジに `!` が出る | サイドパネルにエラーの 1 行が出ている。`claude` が未ログインなら、ターミナルで `claude` を起動してログインしてから「やり直す」 |
+| 「git の無視対象になっていません」と出て動かない | `data/` が `.gitignore` から外れている。下の「知識プロフィール」を参照 |
+
+### 知識プロフィールとデータ
+
+- 知識プロフィールは `data/profile/personal.json` (技術) と `data/profile/work.json` (業務) にあります。ページごとの補足は `data/ext/pages/` です
+- **`data/` はコミットされません**。業務の知識やページの本文が入るので、host は起動のたびに、`data/` が git の無視対象であることと、過去にコミットされていないことを確かめます。外れていたら起動しません
 - 1 ページあたりの先回りの補足は 20 個までです。出典の付けられない補足は出しません
-- E2E: `cd e2e && npm install && npx playwright-core install chromium && npm run e2e` (偽の claude で動く。本物の Chrome のプロファイルには触らない)
+- 補足はページの DOM を書き換えずに重ねて描くので、Notion で編集しても補足が本文に混ざりません
+
+### アンインストール
+
+1. `chrome://extensions` で ubiqdoc を削除する
+2. 登録ファイルを消す: `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.atsushiootani.ubiqdoc.json`
+3. 知識プロフィールと補足が要らなければ、リポジトリの `data/ext/` と `data/profile/` を消す
+
+### E2E テスト
+
+```bash
+cd e2e && npm install && npx playwright-core install chromium && npm run e2e
+```
+
+偽の `claude` で動きます。Playwright 同梱の Chromium と使い捨てのプロファイルを使うので、本物の Chrome のプロファイルには触りません。
 
 ## Claude Code のプラグインとして入れる
 
