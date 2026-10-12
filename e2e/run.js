@@ -122,13 +122,13 @@ const calls = (dir) => {
     await page.mouse.click(p2.x, p2.y);
     await page.locator('ubiqdoc-layer .card').waitFor();
     assert.match(await page.locator('ubiqdoc-layer .card').innerText(), /受注伝票とは/);
-    console.log('ok セクションのカード');
+    // × は見出しのラベルに隠れずに押せる (隠れていると Playwright が「別の要素が受ける」で待ち続けて落ちる)
+    await page.locator('ubiqdoc-layer .card .close').click({ timeout: 5000 });
+    await page.locator('ubiqdoc-layer .card').waitFor({ state: 'detached' });
+    console.log('ok セクションのカード (× で閉じる)');
 
     // 7. 選んで「AI に聞く」→ 小窓 → 答え → 補足が 1 つ増える
-    // 拡張は偽のイベント (isTrusted が false) を無視するので、本物のマウスでドラッグして選ぶ。
-    // 手前の手順で開いたカードが語句の上に重なるので、語句をもう一度押して先に閉じる
-    await page.mouse.click(p2.x, p2.y);
-    await page.locator('ubiqdoc-layer .card').waitFor({ state: 'detached' });
+    // 拡張は偽のイベント (isTrusted が false) を無視するので、本物のマウスでドラッグして選ぶ
     const ends = await page.evaluate(() => {
       const p = [...document.querySelectorAll('#doc p')].find((x) => x.textContent.includes('在庫引当'));
       const i = p.firstChild.data.indexOf('在庫引当');

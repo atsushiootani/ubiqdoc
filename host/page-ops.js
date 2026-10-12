@@ -127,10 +127,17 @@ function discardOrphan(page, id) {
   return n !== page.annotations.length;
 }
 
+// 見えている先回りの補足は LIMIT 個までにする (古い順に残す)。上限は抜き出しのときにも守っているが、
+// 「知ってる」→ やり直す → 「戻す」の順に操作すると、隠れていたぶんが戻って上限を超えるため
+function withinLimit(list) {
+  let n = 0;
+  return list.filter((a) => a.origin !== 'proactive' || a.hidden || ++n <= LIMIT);
+}
+
 function view(page, profile, key) {
   return {
     key, url: page.url, title: page.title, model: page.model,
-    annotations: page.annotations.filter((a) => a.state === 'shown').map((a) => ({ ...a, hidden: !isVisible(a, profile) })),
+    annotations: withinLimit(page.annotations.filter((a) => a.state === 'shown').map((a) => ({ ...a, hidden: !isVisible(a, profile) }))),
     orphaned: page.annotations.filter((a) => a.state === 'orphaned'),
     pending: page.pending,
     dropped: page.dropped,

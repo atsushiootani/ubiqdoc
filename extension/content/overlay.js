@@ -18,7 +18,9 @@ a { color: #1a73e8; }
 .card { position: fixed; max-height: 50vh; overflow: auto; padding: 10px 14px; border-left: 3px solid #e8a71a; border-radius: 0 8px 8px 0; background: #fffaf0; box-shadow: 0 6px 18px rgba(0,0,0,.18); }
 .card .label { font-size: 11px; letter-spacing: .04em; opacity: .65; }
 .card h4 { margin: 0 0 6px; font-size: 14px; }
-.card .close { position: absolute; top: 4px; right: 6px; border: 0; font-size: 14px; }
+.card { padding-right: 30px; }
+/* .label の opacity が重なりの文脈を作り、後ろに描かれるラベルが × を覆ってしまうので前に出す */
+.card .close { position: absolute; top: 4px; right: 6px; z-index: 1; border: 0; font-size: 14px; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 8px 14px; border-radius: 8px; background: #1f2328; color: #fff; display: flex; gap: 12px; align-items: center; }
 .toast button { color: #8ab4f8; border-color: #8ab4f8; }
 .askbtn { position: fixed; padding: 3px 10px; border-radius: 6px; background: #1a73e8; color: #fff; border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.2); }

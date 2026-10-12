@@ -150,3 +150,16 @@ test('conceptOf / view: concept の無い補足は選んだ語句で照合し、
   assert.equal(ops.view(page, noProfile, 'k').annotations[0].hidden, false);
   assert.equal(page.annotations[0].concept, undefined);
 });
+
+test('view: 見えている先回りの補足は 20 個までで切る (古い順に残す)。知ってるで隠れたものとドラッグして聞いたものは数えない', () => {
+  const page = { annotations: [], pending: [], dropped: { noSource: 0 } };
+  for (let i = 0; i < 22; i++) page.annotations.push({ id: `a_${i}`, origin: 'proactive', state: 'shown', concept: { key: `k${i}` }, anchor: { exact: 'x' } });
+  page.annotations.push({ id: 'a_ask', origin: 'ask', state: 'shown', anchor: { exact: 'y' } });
+  const v = ops.view(page, { knows: (c) => c.key === 'k0' }, 'k');
+  const visibleProactive = v.annotations.filter((a) => a.origin === 'proactive' && !a.hidden);
+  assert.equal(visibleProactive.length, 20);
+  assert.equal(visibleProactive.at(-1).id, 'a_20');
+  assert.ok(v.annotations.some((a) => a.id === 'a_0' && a.hidden));
+  assert.ok(v.annotations.some((a) => a.id === 'a_ask'));
+  assert.ok(!v.annotations.some((a) => a.id === 'a_21'));
+});
