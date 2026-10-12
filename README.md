@@ -42,6 +42,19 @@ A local document reader where you can drag any phrase and ask an AI about it on 
 - [Claude Code](https://docs.claude.com/en/docs/claude-code) の CLI (`claude`) にログイン済みであること。質問のたびに `claude -p` を起動する
 - macOS + Chrome で動作確認している
 
+## Chrome 拡張として使う
+
+開いたページのうち、読み手が知らなそうな概念に、聞かれる前に補足 (出典付き) を付けておく拡張です。補足に「知ってる」を返すと、その概念は知識プロフィールに入り、以後どのページでも付きません。語句を選んで「AI に聞く」で、HTML リーダーと同じ小窓も使えます。
+
+1. `bash host/install.sh` を実行する (native host の登録。`node` と `claude` の場所が変わったら再実行)
+2. `chrome://extensions` でデベロッパーモードを ON にし、「パッケージ化されていない拡張機能を読み込む」で `extension/` を選ぶ
+3. 開いたオプション画面で、自動で動かしたいサイトの「許可する」を押す (Notion と GitHub は最初から入っている)。ほかのページでは、ツールバーの ubiqdoc ボタンで動く
+
+- 補足はページの DOM を書き換えずに重ねて描くので、Notion で編集しても補足が本文に混ざりません
+- 知識プロフィールは `data/profile/personal.json` (技術) と `data/profile/work.json` (業務) にあります。**`data/` はコミットされません**。`data/` が git の無視対象でない、または過去にコミットされていると、host は起動を拒否します
+- 1 ページあたりの先回りの補足は 20 個までです。出典の付けられない補足は出しません
+- E2E: `cd e2e && npm install && npx playwright-core install chromium && npm run e2e` (偽の claude で動く。本物の Chrome のプロファイルには触らない)
+
 ## Claude Code のプラグインとして入れる
 
 ```bash

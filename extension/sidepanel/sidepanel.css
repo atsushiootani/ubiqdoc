@@ -1,0 +1,20 @@
+body { font: 13px/1.6 -apple-system, "Hiragino Sans", sans-serif; margin: 0; padding: 8px 12px; color: #1b1e21; }
+nav { display: flex; gap: 4px; margin-bottom: 8px; }
+nav button { flex: 1; padding: 4px; border: 1px solid #dde1e5; background: transparent; border-radius: 6px; cursor: pointer; font: inherit; }
+nav button.on { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+h3 { font-size: 12px; margin: 14px 0 4px; color: #5b636a; }
+.item { border: 1px solid #dde1e5; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; }
+.item .label { font-weight: 600; }
+.row { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #5b636a; }
+.actions { display: flex; gap: 6px; margin-top: 4px; }
+button { font: inherit; font-size: 12px; padding: 1px 8px; border-radius: 6px; border: 1px solid #c3c8cd; background: transparent; cursor: pointer; color: inherit; }
+button.primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+.status { padding: 6px 8px; border-radius: 8px; background: #f4f5f7; }
+.status .err { color: #c5221f; }
+.status code { display: block; margin-top: 4px; padding: 4px; background: #fff; border-radius: 4px; user-select: all; }
+.muted { color: #5b636a; }
+input[type=search] { width: 100%; box-sizing: border-box; font: inherit; padding: 4px; }
+@media (prefers-color-scheme: dark) {
+  body { background: #161a1d; color: #e4e8ea; }
+  .item, nav button { border-color: #333; } .status { background: #22272b; } .status code { background: #111; }
+}

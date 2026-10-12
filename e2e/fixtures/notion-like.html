@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Notion もどき</title></head>
+<body>
+  <div class="notion-page-content" contenteditable="true">
+    <div data-block-id="b1"><span>更新時は楽観ロックで競合を検知する。</span></div>
+    <div data-block-id="b2"><span>受注伝票は月末に締める。</span> <a href="https://example.com/order-spec">受注の仕様</a></div>
+  </div>
+  <script>
+    // Notion の描き直しのまね: 段落を、同じ文字を持つ新しい要素に差し替える
+    window.rerender = () => {
+      for (const b of document.querySelectorAll('[data-block-id]')) b.replaceWith(b.cloneNode(true));
+    };
+  </script>
+</body></html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><title>ubiqdoc の設定</title>
+<style>
+  body { font: 14px/1.6 -apple-system, "Hiragino Sans", sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; color: #1b1e21; }
+  table { width: 100%; border-collapse: collapse; } td, th { border-bottom: 1px solid #dde1e5; padding: 6px 4px; text-align: left; }
+  input[type=text] { width: 100%; box-sizing: border-box; font: inherit; }
+  .muted { color: #5b636a; font-size: 12px; } .ng { color: #c5221f; } .ok { color: #1e8e3e; }
+  @media (prefers-color-scheme: dark) { body { background: #161a1d; color: #e4e8ea; } td, th { border-color: #333; } }
+</style></head>
+<body>
+  <h1>ubiqdoc の設定</h1>
+  <h2>許可リスト</h2>
+  <p class="muted">ここに入れたサイトでは、ページを開くと自動で先回りの補足を作ります。ほかのページでは、ツールバーの ubiqdoc ボタンを押したときだけ動きます。「本文の根」は、補足を付ける範囲の CSS セレクタです (サイドバーなどを除くため)。</p>
+  <table>
+    <thead><tr><th>パターン</th><th>本文の根</th><th>アクセス権</th><th></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <form id="add">
+    <p><input type="text" id="pattern" placeholder="https://example.com/*" required>
+       <input type="text" id="root" placeholder="main (省略可)">
+       <button>追加</button></p>
+  </form>
+  <h2>モデル</h2>
+  <select id="model"><option>haiku</option><option>sonnet</option><option>opus</option></select>
+  <h2>native host</h2>
+  <p id="host" class="muted">確かめています…</p>
+  <script src="../lib/allowlist.js"></script>
+  <script src="options.js"></script>
+</body></html>
