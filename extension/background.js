@@ -74,6 +74,9 @@ function onHostMessage(msg) {
   waiting.delete(msg.id);
   scheduleIdle();
   if (msg.type !== 'result') return;
+  // ページ (iframe を含む) が前に作った補足を読み込んだら、そのフレームの文書をこのタブの文書として覚える。
+  // サイドパネルが iframe の中の文書の補足を出せるように
+  if (w.req.type === 'page-view' && w.tabId != null && msg.data?.view) tabDoc.set(w.tabId, docOf(w.req.url));
   if (PROFILE_MUTATIONS.has(w.req.type)) broadcast({ type: 'profile-changed' });
   else if (MUTATIONS.has(w.req.type) && msg.data?.view) broadcast({ type: 'page-updated', view: msg.data.view });
 }
@@ -82,7 +85,7 @@ function sendHost(req, { tabId, reply }) {
   clearTimeout(idleTimer);
   const id = `r${++seq}`;
   waiting.set(id, { clientId: req.id, tabId, reply, req });
-  if (req.type === 'open-page' && tabId != null) tabDoc.set(tabId, docOf(req.url));
+  if ((req.type === 'open-page' || req.type === 'ask') && tabId != null && req.url) tabDoc.set(tabId, docOf(req.url));
   try {
     connectHost().postMessage({ ...req, id });
   } catch (e) {
@@ -96,11 +99,40 @@ async function settings() {
   return { allowlist: s.allowlist || DEFAULT_ALLOWLIST, model: s.model || 'haiku' };
 }
 
+// サイトの設定は「本文の根」(補足を付ける範囲) だけ。開いただけで補足を作ることはしない
+// (先回りの補足は、サイドパネルの「補足を付ける」を押したときだけ作る)
 async function configFor(url) {
   const { allowlist } = await settings();
   const entry = entryFor(allowlist, url);
-  const granted = entry ? await chrome.permissions.contains({ origins: [entry.pattern] }) : false;
-  return { root: entry?.root || FALLBACK_ROOT, auto: !!entry && granted };
+  return { root: entry?.root || FALLBACK_ROOT };
+}
+
+// タブの全フレームに content script を差し込む。記事を iframe で描くページ (ダッシュボード等) でも
+// 本文のフレームで語句を選べるようにするため。アクセス権の無いフレームには入らない
+async function inject(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: CONTENT_FILES });
+}
+
+// 先回りの補足は、本文がいちばん多いフレーム 1 つだけで作る (全フレームで走らせると二重になる)
+async function runTab(tabId, force) {
+  try {
+    await inject(tabId);
+  } catch (e) {
+    throw new Error(`このページでは動かせません。ツールバーの ubiqdoc ボタンを押してから、もう一度試してください (${e.message})`);
+  }
+  const results = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: () => {
+      const NS = window.__ubq;
+      if (!NS || !NS.text) return -1;
+      return NS.text.roots(NS.rootSel || 'main').reduce((n, r) => n + (r.innerText || r.textContent || '').length, 0);
+    },
+  });
+  const best = (results || []).filter((r) => typeof r.result === 'number' && r.result >= 0)
+    .sort((a, b) => b.result - a.result)[0];
+  if (!best) throw new Error('本文が見つかりませんでした');
+  await chrome.tabs.sendMessage(tabId, { type: 'run', force: !!force }, { frameId: best.frameId });
+  return { frameId: best.frameId };
 }
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -110,12 +142,19 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onMessage.addListener(async (msg) => {
     if (msg.type === 'config') return reply({ id: msg.id, type: 'result', data: await configFor(msg.url) });
     if (msg.type === 'tab-status') return reply({ id: msg.id, type: 'result', data: tabStatus.get(msg.tabId) || null });
+    // サイドパネルが「このタブで補足を付けている文書」の URL を知るため (iframe の中の文書ならその URL)
+    if (msg.type === 'tab-doc') return reply({ id: msg.id, type: 'result', data: tabDoc.get(msg.tabId) || null });
+    if (msg.type === 'run-tab') {
+      try { return reply({ id: msg.id, type: 'result', data: await runTab(msg.tabId, msg.force) }); }
+      catch (e) { return reply({ id: msg.id, type: 'error', message: e.message }); }
+    }
     const req = msg.type === 'open-page' ? { ...msg, model: (await settings()).model } : msg;
     sendHost(req, { tabId: msg.tabId ?? senderTab, reply });
   });
 });
 
-// 許可リストのうち、アクセス権のあるサイトにだけ content script を登録する
+// サイト一覧のうち、アクセス権のあるサイトにだけ content script を登録する。
+// 登録しておくと、開いただけで語句の「AI に聞く」が使える (補足は作らない)
 async function doSyncContentScripts() {
   const { allowlist } = await settings();
   const granted = [];
@@ -124,7 +163,7 @@ async function doSyncContentScripts() {
   }
   await chrome.scripting.unregisterContentScripts({ ids: ['ubq'] }).catch(() => {});
   if (granted.length) {
-    await chrome.scripting.registerContentScripts([{ id: 'ubq', matches: granted, js: CONTENT_FILES, runAt: 'document_idle', persistAcrossSessions: true }]);
+    await chrome.scripting.registerContentScripts([{ id: 'ubq', matches: granted, js: CONTENT_FILES, runAt: 'document_idle', allFrames: true, persistAcrossSessions: true }]);
   }
 }
 
@@ -156,13 +195,12 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
 });
 
-// 許可リストに無いページでは、ツールバーのボタンで実行する (activeTab の権限で差し込む)
+// ツールバーのボタン: サイドパネルを開き、全フレームに差し込む (activeTab の権限で)。
+// これで「AI に聞く」が使えるようになる。先回りの補足は作らない (サイドパネルの「補足を付ける」で作る)
 chrome.action.onClicked.addListener(async (tab) => {
   chrome.sidePanel.open({ tabId: tab.id }).catch(() => {});
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_FILES });
-    // 強制はしない (host は初回と本文が変わったときだけ先回りを走らせる)。やり直しはサイドパネルから
-    await chrome.tabs.sendMessage(tab.id, { type: 'run', force: false });
+    await inject(tab.id);
   } catch (e) {
     chrome.runtime.sendMessage({ type: 'status', tabId: tab.id, status: { stage: 'error', message: `このページでは動かせません: ${e.message}` } }).catch(() => {});
   }

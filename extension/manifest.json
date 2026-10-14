@@ -8,7 +8,7 @@
   "permissions": ["nativeMessaging", "storage", "sidePanel", "scripting", "activeTab", "tabs"],
   "optional_host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
-  "action": { "default_title": "ubiqdoc: このページに補足を付ける" },
+  "action": { "default_title": "ubiqdoc: サイドパネルを開いて、語句を AI に聞けるようにする" },
   "side_panel": { "default_path": "sidepanel/sidepanel.html" },
   "options_page": "options/options.html"
 }

@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'extension', 'background.js'), 'utf8');
 
-function load() {
+function load(opts = {}) {
   const log = [];
   const on = {};
   const ev = (name) => ({ addListener: (f) => { if (name) on[name] = f; } });
@@ -25,8 +25,14 @@ function load() {
     },
     permissions: { onAdded: ev(), onRemoved: ev() },
     storage: { onChanged: ev(), local: { get: async () => ({}) } },
-    tabs: { onRemoved: ev(), onUpdated: ev('updated'), query: async () => [], sendMessage: (id, m) => { log.push(['tab', m]); return ok(); } },
-    scripting: { executeScript: ok },
+    tabs: { onRemoved: ev(), onUpdated: ev('updated'), query: async () => [], sendMessage: (id, m, o) => { log.push(['tab', m, o || null]); return ok(); } },
+    scripting: {
+      executeScript: (o) => {
+        log.push(['exec', o.files ? { files: true, allFrames: !!o.target.allFrames } : { func: true, allFrames: !!o.target.allFrames }]);
+        if (opts.injectFails && o.files) return Promise.reject(new Error('Cannot access contents of the page'));
+        return Promise.resolve(o.func ? (opts.frames || []) : []);
+      },
+    },
     sidePanel: { open: ok },
   };
   vm.runInNewContext(SRC, { chrome, importScripts: () => {}, self: { ubqAllowlist: {} }, console, setTimeout: () => 0, clearTimeout: () => {} });
@@ -52,10 +58,36 @@ test('先回りが失敗すると、バッジが赤い ! になり、サイド�
   assert.deepEqual(plain(log), [['badge', '']]);
 });
 
-test('ツールバーのボタンは force なしで先回りを頼む', async () => {
+test('ツールバーのボタンは全フレームに差し込むだけで、先回りの補足は頼まない', async () => {
   const { log, on } = load();
   await on.clicked({ id: 3 });
-  assert.deepEqual(plain(log.find((l) => l[0] === 'tab')[1]), { type: 'run', force: false });
+  assert.deepEqual(plain(log.filter((l) => l[0] === 'exec')), [['exec', { files: true, allFrames: true }]]);
+  assert.equal(log.filter((l) => l[0] === 'tab').length, 0);
+});
+
+test('「補足を付ける」(run-tab) は、本文がいちばん多いフレームにだけ run を送る', async () => {
+  const { log, port } = load({ frames: [{ frameId: 0, result: 120 }, { frameId: 4, result: 9000 }, { frameId: 5, result: -1 }] });
+  await port.send({ id: 's1', type: 'run-tab', tabId: 7, force: true });
+  assert.deepEqual(plain(log.filter((l) => l[0] === 'tab')), [['tab', { type: 'run', force: true }, { frameId: 4 }]]);
+  assert.deepEqual(plain(log.find((l) => l[0] === 'reply')[1]), { id: 's1', type: 'result', data: { frameId: 4 } });
+});
+
+test('差し込めないページで run-tab を押すと、ツールバーのボタンを促すエラーを返す', async () => {
+  const { log, port } = load({ injectFails: true });
+  await port.send({ id: 's1', type: 'run-tab', tabId: 7, force: false });
+  const r = plain(log.find((l) => l[0] === 'reply')[1]);
+  assert.equal(r.type, 'error');
+  assert.match(r.message, /ツールバーの ubiqdoc ボタン/);
+});
+
+test('iframe の文書が前の補足を読み込んだら、その URL をタブの文書として返す (tab-doc)', async () => {
+  const { log, on, port } = load();
+  await port.send({ id: 'c1', type: 'page-view', url: 'http://127.0.0.1:8787/tech/api/article-raw?id=1' });
+  const id = log.find((l) => l[0] === 'post')[1].id;
+  on.host({ id, type: 'result', data: { view: { annotations: [] } } });
+  log.length = 0;
+  await port.send({ id: 's1', type: 'tab-doc', tabId: 7 });
+  assert.deepEqual(plain(log.find((l) => l[0] === 'reply')[1]), { id: 's1', type: 'result', data: 'http://127.0.0.1:8787/tech/api/article-raw?id=1' });
 });
 
 test('別のページに移ったあとに届いた、前のページの進み具合はバッジに出さない', async () => {

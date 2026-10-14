@@ -47,17 +47,20 @@ function renderStatus(view, st, err) {
     lines.push(`<div class="err">${esc(err)}</div>`);
     if (/install\.sh/.test(err)) lines.push('<code>bash host/install.sh</code>');
   }
-  if (!view && !err) lines.push('<div class="muted">このページではまだ補足を作っていません。ツールバーの ubiqdoc ボタンで始められます</div>');
+  if (!view && !err) lines.push('<div class="muted">このページではまだ補足を作っていません。下のボタンで作れます。語句を選べば「AI に聞く」も使えます</div>');
   const s = statusText(st);
   if (s && s !== err) lines.push(`<div>${esc(s)}</div>`);
   if (view?.dropped?.noSource) lines.push(`<div class="muted">出典が付けられず捨てた補足: ${view.dropped.noSource} 個</div>`);
   if (view?.truncated) lines.push('<div class="muted">本文が 100KB を超えたので、先頭だけを読ませました</div>');
-  if (view) lines.push('<div class="actions"><button id="rerun">やり直す</button></div>');
+  // 先回りの補足は、このボタンを押したときだけ作る。作ってあれば作り直す
+  lines.push(`<div class="actions"><button id="run" class="primary">${view ? '補足を作り直す' : '補足を付ける'}</button></div>`);
   box.innerHTML = lines.join('');
-  $('#rerun')?.addEventListener('click', () => sendTab({ type: 'run', force: true }).catch(() => {
-    lastError = 'このページではまだ動いていません。ツールバーの ubiqdoc ボタンを押してください';
+  $('#run').addEventListener('click', async () => {
+    $('#run').disabled = true;
+    try { await request('run-tab', { tabId: current.tabId, force: !!view }); lastError = null; }
+    catch (e) { lastError = e.message; }
     refresh();
-  }));
+  });
 }
 
 function renderTurns(view) {
@@ -142,7 +145,9 @@ async function renderProfile() {
 async function refresh() {
   const t = await activeTab();
   if (!t) return;
-  current = { tabId: t.id, url: t.url };
+  // 文書が iframe の中にあるページでは、補足の持ち主はその iframe の URL (background が覚えている)
+  const doc = await request('tab-doc', { tabId: t.id }).catch(() => null);
+  current = { tabId: t.id, url: doc || t.url };
   if (!$('#profile').hidden) { renderProfile(); return; }
   let view = null;
   let err = lastError;
