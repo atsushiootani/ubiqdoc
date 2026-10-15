@@ -61,7 +61,8 @@ function createHost({ dataDir, run } = {}) {
       }
       pages.save(key);
       emit('view', viewOf(key));
-      if (changed || m.force || !page.proactiveAt) {
+      // proactive: false は「本文だけ受け取って、先回りの補足は作らない」。語句を聞く前の登録に使う
+      if (m.proactive !== false && (changed || m.force || !page.proactiveAt)) {
         if (!running.has(key)) {
           const job = runProactive({
             key, pages, bases, profile,

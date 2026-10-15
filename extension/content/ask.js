@@ -157,10 +157,17 @@
     const out = logLine(win, 'ai', '…');
     const started = performance.now();
     // 聞いた時点の表示の持ち主。答えが返るまでにページが遷移したら (key が変わる)、補足の表示は更新しない
-    const url = renderer.view?.url || location.href;
-    const key = renderer.view?.key;
+    let url = renderer.view?.url || location.href;
+    let key = renderer.view?.key;
     let raw = '';
     try {
+      // まだ一度も開いていないページなら、本文を渡してから聞く (補足を付ける前でも聞けるように)。
+      // 渡したあとの表示の持ち主で比べ直す (取り直さないと、答えの補足が画面に出ない)
+      if (!key) {
+        await NS.ensurePage();
+        url = renderer.view?.url || location.href;
+        key = renderer.view?.key;
+      }
       const res = await NS.request('ask', {
         url, windowId: win.id, sessionId: win.sessionId, turnId: rid('t'),
         selection: win.quote.exact, quote: win.quote, context: win.sessionId ? undefined : win.context,

@@ -84,6 +84,21 @@
     if (r?.view && url === location.href) renderer.setView(r.view);
   }
 
+  // 語句を聞く前に、このページの本文を host に渡しておく (先回りの補足は作らない)。
+  // host は本文を受け取ったページにしか答えられないため。同じ URL では 1 回だけ
+  let ensured = null;
+  NS.ensurePage = async () => {
+    const url = location.href;
+    if (ensured?.url === url) return ensured.p;
+    const rootEls = NS.text.roots(config?.root || 'main');
+    const p = request('open-page', {
+      url, title: document.title, text: NS.text.pageText(rootEls), links: NS.text.pageLinks(rootEls), proactive: false,
+    }).then((r) => { if (r?.view && url === location.href) renderer.setView(r.view); return r; });
+    ensured = { url, p };
+    p.catch(() => { if (ensured?.p === p) ensured = null; });
+    return p;
+  };
+
   async function start(force) {
     if (running) { rerun = { force: !!force }; return; }
     running = true;
