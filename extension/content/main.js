@@ -1,4 +1,5 @@
-// 起動。許可リストのページなら開いたら自動で、ほかのページではツールバーのボタン ('run') で動く
+// 起動。差し込まれた時点で語句の「AI に聞く」を使えるようにし、前に作った補足があれば表示する。
+// 先回りの補足は、サイドパネルの「補足を付ける」から届く 'run' でだけ作る
 (() => {
   const NS = window.__ubq;
   if (NS.started) return;
@@ -65,6 +66,39 @@
 
   let rerun = null; // 実行中に遷移したとき、終わってからもう一度走らせる依頼
 
+  // 描画と「AI に聞く」の受け口を用意する。本文の根はサイトの設定から取る
+  async function setup(url) {
+    config = await request('config', { url }).catch(() => ({ root: 'main' }));
+    NS.rootSel = config.root;
+    if (!renderer) {
+      renderer = new NS.Renderer({ rootSel: config.root, onKnown });
+      NS.ask.install({ renderer });
+    }
+    renderer.rootSel = config.root;
+  }
+
+  // 前に作った補足を表示する (作り直しはしない)
+  async function showSaved() {
+    const url = location.href;
+    const r = await request('page-view', { url }).catch(() => null);
+    if (r?.view && url === location.href) renderer.setView(r.view);
+  }
+
+  // 語句を聞く前に、このページの本文を host に渡しておく (先回りの補足は作らない)。
+  // host は本文を受け取ったページにしか答えられないため。同じ URL では 1 回だけ
+  let ensured = null;
+  NS.ensurePage = async () => {
+    const url = location.href;
+    if (ensured?.url === url) return ensured.p;
+    const rootEls = NS.text.roots(config?.root || 'main');
+    const p = request('open-page', {
+      url, title: document.title, text: NS.text.pageText(rootEls), links: NS.text.pageLinks(rootEls), proactive: false,
+    }).then((r) => { if (r?.view && url === location.href) renderer.setView(r.view); return r; });
+    ensured = { url, p };
+    p.catch(() => { if (ensured?.p === p) ensured = null; });
+    return p;
+  };
+
   async function start(force) {
     if (running) { rerun = { force: !!force }; return; }
     running = true;
@@ -72,12 +106,7 @@
     const url = location.href;
     const same = () => url === location.href;
     try {
-      config = config || await request('config', { url });
-      if (!renderer) {
-        renderer = new NS.Renderer({ rootSel: config.root, onKnown });
-        NS.ask.install({ renderer });
-      }
-      renderer.rootSel = config.root;
+      if (!renderer) await setup(url);
       await NS.text.waitSettled();
       if (!same()) return;
       const rootEls = NS.text.roots(config.root);
@@ -98,9 +127,10 @@
         const req = rerun;
         rerun = null;
         if (!same()) {
-          // 遷移していた: 新しいページの設定を取り直し、自動対象か明示の依頼があれば走らせる
-          config = await request('config', { url: location.href }).catch(() => null);
-          if (config?.auto || req) start(!!req?.force);
+          // 遷移していた: 新しいページの設定を取り直し、前の補足を出す。実行中に頼まれていたら走らせる
+          await setup(location.href);
+          await showSaved();
+          if (req) start(!!req.force);
         } else if (req) start(req.force);
       }
     }
@@ -121,12 +151,12 @@
     lastUrl = location.href;
     renderer?.setView({ annotations: [] });
     if (running) return; // 実行中なら、終わった時点で start() の後始末が新しいページを拾う
-    config = await request('config', { url: location.href }).catch(() => null);
-    if (config?.auto) start(false);
+    await setup(location.href);
+    await showSaved();
   }, 500);
 
   (async () => {
-    config = await request('config', { url: location.href }).catch(() => null);
-    if (config?.auto) start(false);
+    await setup(location.href);
+    await showSaved();
   })();
 })();

@@ -107,6 +107,20 @@ test('ドラッグして聞く → 補足が足される → 取り消す', asyn
   assert.equal(u.data.view.annotations.filter((a) => a.turnId === 't_ask').length, 0);
 });
 
+test('proactive: false で開くと、先回りの補足は作らずに本文だけ受け取り、そのまま聞ける', async (t) => {
+  const h = startHost(t);
+  const o = await open(h, { proactive: false });
+  assert.equal(o.data.view.annotations.length, 0);
+  assert.equal(h.calls().filter((c) => c.head.startsWith('[抜き出し]')).length, 0);
+  const quote = { exact: '在庫引当', prefix: '月末に締める。', suffix: 'は夜間に' };
+  const r = await h.req('ask', { url: URL1, windowId: 'w_1', turnId: 't_ask', selection: '在庫引当', quote, context: TEXT, asides: '', question: '説明して' });
+  assert.equal(r.data.added.length, 1);
+  // あとで「補足を付ける」を押せば、先回りは初回として走る
+  const run = await open(h);
+  assert.ok(h.calls().some((c) => c.head.startsWith('[抜き出し]')));
+  assert.ok(run.data.view.annotations.length >= 1);
+});
+
 test('小窓で聞いた concept の無い補足も、知ってるで隠れる (記録には concept を書き足さない)', async (t) => {
   const h = startHost(t);
   await open(h);
