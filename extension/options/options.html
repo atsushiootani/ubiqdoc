@@ -24,6 +24,10 @@
   <select id="model"><option>haiku</option><option>sonnet</option><option>opus</option></select>
   <h2>native host</h2>
   <p id="host" class="muted">確かめています…</p>
+  <div id="host-fix" hidden>
+    <p class="muted">ubiqdoc を clone したディレクトリで、次のコマンドを実行してください。そのあと <code>chrome://extensions</code> で ubiqdoc を再読み込みします。</p>
+    <p><code id="host-cmd">bash host/install.sh</code> <button id="host-copy">コピー</button></p>
+  </div>
   <script src="../lib/allowlist.js"></script>
   <script src="options.js"></script>
 </body></html>

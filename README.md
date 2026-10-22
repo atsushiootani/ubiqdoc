@@ -109,7 +109,7 @@ A local document reader where you can drag any phrase and ask an AI about it on 
 git pull
 ```
 
-そのあと `chrome://extensions` で ubiqdoc の再読み込みボタンを押します。`host/` を変えた更新でも、host は呼ばれるたびに起動し直すので、追加の作業はいりません (`node` や `claude` の場所を変えたときだけ `bash host/install.sh` を実行し直す)。
+そのあと `chrome://extensions` で ubiqdoc の再読み込みボタンを押します。`host/` を変えた更新でも、host は呼ばれるたびに起動し直すので、追加の作業はいりません (`node` の版を消したときも、host は起動のたびにシェルへ聞き直すので、そのまま動きます)。
 
 サイトごとの設定に行が増えた更新では、オプション画面で新しい行の「許可する」を押してください。設定を自分で編集したことがあると、新しい既定の行は自動では入らないので、手で「追加」してください。
 
@@ -118,6 +118,7 @@ git pull
 | 症状 | 対処 |
 |---|---|
 | オプション画面やサイドパネルに「host が未登録です」と出る | リポジトリで `bash host/install.sh` を実行し、拡張を再読み込みする |
+| 「host が起動できませんでした」と出る | `node` か `claude` が見つからない。理由は `logs/host-launch.log` に出ている。リポジトリで `bash host/install.sh` を実行し直し、拡張を再読み込みする |
 | 語句を選んでも「AI に聞く」が出ない | そのページにまだ差し込まれていない。ツールバーの ubiqdoc ボタンを押す (ページを再読み込みしたら押し直す)。毎回押したくないサイトは、オプション画面で URL に合うパターンを足して許可する (Notion は URL が `www.notion.so` と `app.notion.com` の 2 通りある) |
 | バッジに `!` が出る | サイドパネルにエラーの 1 行が出ている。`claude` が未ログインなら、ターミナルで `claude` を起動してログインしてから「補足を作り直す」 |
 | 「git の無視対象になっていません」と出て動かない | `data/` が `.gitignore` から外れている。下の「知識プロフィール」を参照 |
