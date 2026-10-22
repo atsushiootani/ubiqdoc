@@ -18,9 +18,10 @@ const tabDoc = new Map();       // tabId → いま開いている文書の URL 
 const docOf = (u) => String(u || '').split('#')[0];
 
 function hostErrorText(err) {
-  return /not found|Specified native messaging host|forbidden/i.test(err)
-    ? 'host が未登録です。ubiqdoc のリポジトリで host/install.sh を実行してください'
-    : err;
+  if (/not found|Specified native messaging host|forbidden/i.test(err)) return 'host が未登録です。ubiqdoc のリポジトリで host/install.sh を実行してください';
+  // 起動直後に落ちた。node や claude の場所が変わったときに多い (理由は run.sh が logs/host-launch.log に書く)
+  if (/exited/i.test(err)) return 'host が起動できませんでした。ubiqdoc のリポジトリで host/install.sh を実行し直してください (理由は logs/host-launch.log)';
+  return err;
 }
 
 function connectHost() {

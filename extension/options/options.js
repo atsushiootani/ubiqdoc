@@ -44,7 +44,15 @@ $('#model').addEventListener('change', (e) => chrome.storage.local.set({ model: 
   const port = chrome.runtime.connect({ name: 'ubq' });
   port.onMessage.addListener((m) => {
     if (m.type === 'result') $('#host').innerHTML = m.data.ok ? '<span class="ok">つながっています</span>' : `<span class="ng">${esc(m.data.reason)}</span>`;
-    else if (m.type === 'error') $('#host').innerHTML = `<span class="ng">${esc(m.message)}</span>`;
+    else if (m.type === 'error') {
+      $('#host').innerHTML = `<span class="ng">${esc(m.message)}</span>`;
+      // 繋がらないときだけ直し方を出す。コマンドは拡張に固定した文字列で、host やページから受け取った値は混ぜない
+      $('#host-fix').hidden = false;
+    }
+  });
+  $('#host-copy').addEventListener('click', async () => {
+    await navigator.clipboard.writeText($('#host-cmd').textContent);
+    $('#host-copy').textContent = 'コピーしました';
   });
   port.postMessage({ id: 'hello', type: 'hello' });
 })();
